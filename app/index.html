@@ -191,7 +191,14 @@ body{
   border-bottom:1px dashed transparent;padding:1px 0;min-width:60px;max-width:150px}
 .pesca-item .nome:focus{outline:none;border-bottom-color:var(--ok)}
 .pesca-item .tempo{font-size:11px;color:var(--boia);font-variant-numeric:tabular-nums}
-.pesca-item .meta{font-size:11px;color:var(--tinta-fraca);font-variant-numeric:tabular-nums}
+.pesca-item .meta{font-size:11px;color:var(--tinta-fraca);font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.prof-campo{display:inline-flex;align-items:center;gap:3px;color:var(--agua)}
+.ico-prof{width:13px;height:13px;stroke:var(--agua);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.profin{width:46px;background:rgba(47,127,179,.14);border:1px solid rgba(47,127,179,.4);
+  color:var(--tinta);border-radius:6px;padding:2px 5px;font-size:12px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.profin:focus{outline:none;border-color:var(--agua)}
+.profin::-webkit-outer-spin-button,.profin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .pesca-item .nota{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--painel-borda);
   color:var(--tinta);border-radius:8px;padding:6px 8px;font-size:12px;resize:none;font-family:inherit}
 .pesca-item .nota:focus{outline:none;border-color:var(--ok)}
@@ -510,7 +517,8 @@ function redesenharPesca(){
     }).addTo(map);
     m.on('click',()=>{
       const d = posAtual ? ' · '+(haversineM({lat:posAtual.lat,lng:posAtual.lng},p)*M_PARA_MN).toFixed(2)+' MN' : '';
-      toast((p.nome||'Pesca')+' · '+tempoDesde(p.t)+d);
+      const prof = (p.prof!=null && p.prof!=='') ? ' · '+p.prof+' m' : '';
+      toast((p.nome||'Pesca')+' · '+tempoDesde(p.t)+prof+d);
     });
     marcPesca.push(m);
   });
@@ -535,9 +543,12 @@ function renderPesca(){
           <input class="nome" data-id="${p.id}" value="${(p.nome||'').replace(/"/g,'&quot;')}" aria-label="Nome do ponto">
           <span class="tempo">${tempoDesde(p.t)}</span>
         </div>
-        <div class="meta">${dist}</div>
+        <div class="meta">${dist}
+          <span class="prof-campo">· <svg viewBox="0 0 24 24" class="ico-prof"><path d="M12 3v14"/><path d="M7 12l5 5 5-5"/></svg>
+          <input class="profin" type="number" inputmode="decimal" step="0.1" min="0" data-id="${p.id}" value="${p.prof!=null?p.prof:''}" placeholder="—" aria-label="Profundidade em metros"> m</span>
+        </div>
         <div class="tipos">${chips}</div>
-        <textarea class="nota" data-id="${p.id}" rows="1" placeholder="Anotação (profundidade, isca, peixe...)">${(p.nota||'').replace(/</g,'&lt;')}</textarea>
+        <textarea class="nota" data-id="${p.id}" rows="1" placeholder="Anotação (isca, peixe, maré, fundo...)">${(p.nota||'').replace(/</g,'&lt;')}</textarea>
       </div>
       <div class="acoes">
         <button class="mini ir" data-id="${p.id}" aria-label="Centralizar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg></button>
@@ -549,6 +560,7 @@ function renderPesca(){
   const acha=id=>pescas.find(p=>p.id==id);
   lista.querySelectorAll('.nome').forEach(el=>el.onchange=()=>{ const p=acha(el.dataset.id); if(p){p.nome=el.value; salvarPesca();} });
   lista.querySelectorAll('.nota').forEach(el=>el.onchange=()=>{ const p=acha(el.dataset.id); if(p){p.nota=el.value; salvarPesca();} });
+  lista.querySelectorAll('.profin').forEach(el=>el.onchange=()=>{ const p=acha(el.dataset.id); if(p){ p.prof = el.value===''?'':el.value; salvarPesca(); } });
   lista.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ const p=acha(b.dataset.id); if(p){p.tipo=b.dataset.tipo; salvarPesca(); redesenharPesca(); renderPesca();} });
   lista.querySelectorAll('.ir').forEach(b=>b.onclick=()=>{ const p=acha(b.dataset.id); if(p){ fecharTudo(); map.setView([p.lat,p.lng],15);} });
   lista.querySelectorAll('.del').forEach(b=>b.onclick=()=>{ const i=pescas.findIndex(p=>p.id==b.dataset.id); if(i>=0){pescas.splice(i,1); salvarPesca(); redesenharPesca(); renderPesca();} });

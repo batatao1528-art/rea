@@ -4,7 +4,7 @@
  * - Cache dos tiles de mapa já visitados (cache-first), base da navegação offline:
  *   as áreas que você abrir com internet ficam disponíveis depois sem sinal.
  */
-const APP_CACHE = 'carta-app-v3';
+const APP_CACHE = 'carta-app-v4';
 const TILE_CACHE = 'carta-tiles-v1';
 const APP_ASSETS = [
   './',
