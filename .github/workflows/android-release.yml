@@ -1,0 +1,62 @@
+name: Gerar AAB assinado NavegaDor
+
+# Gera o pacote .aab ASSINADO para enviar à Play Store.
+# Rode manualmente (Actions > este fluxo > Run workflow) ou criando uma tag v*.
+# Precisa dos 4 segredos no repositório: KEYSTORE_BASE64, KEYSTORE_PASSWORD,
+# KEY_ALIAS, KEY_PASSWORD. Veja app/play/ASSINATURA.md.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir segredos
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "::error::Falta configurar os segredos de assinatura (KEYSTORE_BASE64, etc). Veja app/play/ASSINATURA.md."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Sincronizar web -> Android
+        run: npx cap sync android
+
+      - name: Decodificar keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/navegador.jks"
+
+      - name: Construir AAB assinado
+        working-directory: android
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/navegador.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Publicar AAB como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: navegador-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
