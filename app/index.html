@@ -164,8 +164,8 @@ body{
 .toast{position:fixed;z-index:800;left:50%;transform:translateX(-50%);
   bottom:calc(88px + env(safe-area-inset-bottom,0px));
   background:var(--casco);border:1px solid var(--boia);color:var(--tinta);
-  padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;
-  box-shadow:var(--sombra);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;text-align:center;
+  max-width:86vw;box-shadow:var(--sombra);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
 
 /* marcador do barco */
@@ -213,6 +213,18 @@ body{
   background:var(--ok);border:2px solid #fff;display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .pin-pesca span{transform:rotate(45deg);font-size:15px}
+
+/* ---- Sondagem / calado ---- */
+.calado-box{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 8px;border-radius:10px;background:rgba(47,127,179,.12);border:1px solid rgba(47,127,179,.3)}
+.calado-box label{font-size:13px;font-weight:600}
+.calado-box > div{display:flex;align-items:center;gap:5px;color:var(--tinta-fraca);font-size:13px}
+.calado-box input{width:60px;background:var(--casco);border:1px solid var(--painel-borda);
+  color:var(--tinta);border-radius:7px;padding:6px 8px;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.calado-box input:focus{outline:none;border-color:var(--agua)}
+.aviso{margin-top:10px;font-size:11px;line-height:1.5;color:var(--tinta-fraca);
+  background:rgba(229,72,77,.1);border:1px solid rgba(229,72,77,.3);border-radius:10px;padding:10px}
+.aviso b{color:var(--perigo)}
 </style>
 </head>
 <body>
@@ -270,7 +282,16 @@ body{
   <div class="opcao" data-base="sat"><span class="ponto"></span><div class="txt"><b>Satélite</b><div class="sub">Imagem aérea (Esri World Imagery)</div></div></div>
   <div class="opcao" data-base="topo"><span class="ponto"></span><div class="txt"><b>Topográfico</b><div class="sub">Relevo e curvas de nível (OpenTopoMap)</div></div></div>
   <h2 style="margin-top:14px">Sobreposições</h2>
-  <div class="opcao sel" data-over="seamark"><span class="ponto"></span><div class="txt"><b>Marcas náuticas</b><div class="sub">Boias, faróis, canais, profundidades — OpenSeaMap</div></div></div>
+  <div class="opcao sel" data-over="seamark"><span class="ponto"></span><div class="txt"><b>Marcas náuticas</b><div class="sub">Boias, faróis, canais, sondagens — OpenSeaMap</div></div></div>
+  <div class="opcao" data-gebco="1"><span class="ponto"></span><div class="txt"><b>Profundidade (GEBCO)</b><div class="sub">Sombreia o fundo: escuro = fundo, claro = raso</div></div></div>
+
+  <h2 style="margin-top:14px">Sondagem</h2>
+  <div class="calado-box">
+    <label for="in-calado">Calado do seu barco</label>
+    <div><input id="in-calado" type="number" inputmode="decimal" step="0.1" min="0" placeholder="1.5"> m</div>
+  </div>
+  <div class="dica" style="text-align:left">Toque e segure num ponto do mapa para ver a profundidade de referência ali e comparar com o calado.</div>
+  <div class="aviso">⚠️ Profundidade de referência (GEBCO), aproximada e global. <b>Não é carta náutica oficial</b> e não substitui o ecobatímetro. Nunca decida passagem só por aqui — use cartas oficiais (DHN/Marinha) e sonar.</div>
 </div>
 
 <!-- Folha de waypoints/rota -->
@@ -320,6 +341,11 @@ const bases = {
 const seamark = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
   maxZoom:18, attribution:'Náutico © OpenSeaMap'
 });
+// Batimetria global GEBCO (profundidade de referência — NÃO é carta náutica oficial)
+const gebco = L.tileLayer.wms('https://wms.gebco.net/mapserv?', {
+  layers:'GEBCO_LATEST', format:'image/png', version:'1.3.0',
+  opacity:0.55, attribution:'Profundidade © GEBCO'
+});
 
 const map = L.map('map',{ zoomControl:false, attributionControl:true })
   .setView([-23.976, -46.308], 12); // Baía de Santos como ponto de partida
@@ -328,15 +354,27 @@ L.control.zoom({position:'topright'}).addTo(map);
 let baseAtual = bases.osm.addTo(map);
 let seamarkOn = true; seamark.addTo(map);
 
+let gebcoOn = false;
+function reordenar(){
+  if(gebcoOn) gebco.bringToFront();
+  if(seamarkOn) seamark.bringToFront();
+}
 function trocarBase(id){
   if(baseAtual){ map.removeLayer(baseAtual); }
   baseAtual = bases[id].addTo(map);
-  if(seamarkOn){ seamark.bringToFront(); }
+  reordenar();
 }
 function toggleOverlay(on){
   seamarkOn = on;
-  if(on){ seamark.addTo(map); seamark.bringToFront(); }
+  if(on){ seamark.addTo(map); }
   else { map.removeLayer(seamark); }
+  reordenar();
+}
+function toggleGebco(on){
+  gebcoOn = on;
+  if(on){ gebco.addTo(map); toast('Profundidade GEBCO: referência, não é carta oficial'); }
+  else { map.removeLayer(gebco); }
+  reordenar();
 }
 
 /* ---------------- Utilidades ---------------- */
@@ -655,6 +693,40 @@ fCamadas.querySelectorAll('[data-base]').forEach(o=>o.onclick=()=>{
 fCamadas.querySelectorAll('[data-over]').forEach(o=>o.onclick=()=>{
   const on=!o.classList.contains('sel'); o.classList.toggle('sel',on); toggleOverlay(on);
 });
+const opGebco=fCamadas.querySelector('[data-gebco]');
+opGebco.onclick=()=>{ const on=!opGebco.classList.contains('sel'); opGebco.classList.toggle('sel',on); toggleGebco(on); };
+
+/* ---------------- Calado + sondagem por toque longo ---------------- */
+const inCalado=document.getElementById('in-calado');
+let calado=NaN;
+try{ const v=localStorage.getItem('rea.calado'); if(v){ calado=parseFloat(v); inCalado.value=v; } }catch(e){}
+inCalado.onchange=()=>{
+  calado=parseFloat(inCalado.value);
+  try{ localStorage.setItem('rea.calado', inCalado.value||''); }catch(e){}
+};
+
+let sondando=false;
+async function sondar(lat,lng){
+  if(sondando) return; sondando=true;
+  toast('Consultando profundidade…');
+  try{
+    const r=await fetch('https://api.opentopodata.org/v1/gebco2020?locations='+lat.toFixed(5)+','+lng.toFixed(5));
+    const j=await r.json();
+    const el=j && j.results && j.results[0] ? j.results[0].elevation : null;
+    if(el==null){ toast('Sem dado de profundidade aqui'); return; }
+    if(el>=0){ toast('~'+el.toFixed(0)+' m ACIMA do nível do mar (terra/seco)'); return; }
+    const prof=-el;
+    let msg='Profundidade ~'+prof.toFixed(0)+' m (GEBCO)';
+    if(!isNaN(calado) && calado>0){
+      const folga=prof-calado;
+      msg += folga>0 ? ' · folga ~'+folga.toFixed(1)+' m' : ' · ⚠️ RASO p/ calado '+calado+' m';
+    }
+    toast(msg);
+  }catch(e){
+    toast('Falha ao consultar (sem internet?)');
+  } finally { sondando=false; }
+}
+map.on('contextmenu', e=>{ sondar(e.latlng.lat, e.latlng.lng); });
 
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
