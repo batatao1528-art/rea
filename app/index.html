@@ -259,6 +259,43 @@ body{
 .perfil-item .mini{background:none;border:none;color:var(--tinta-fraca);padding:8px;cursor:pointer}
 .perfil-item .mini svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
+/* ---- Barra rolável (6 botões) ---- */
+.doca{overflow-x:auto;scrollbar-width:none}
+.doca::-webkit-scrollbar{display:none}
+.doca .btn{flex:1 0 auto;min-width:56px}
+
+/* ---- Ferramentas (Mais) ---- */
+.tool-sec{padding:12px 2px;border-bottom:1px solid rgba(255,255,255,.07)}
+.tool-cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.tool-cab b{font-size:14px}
+.tool-info{margin-left:auto;font-size:11px;color:var(--tinta-fraca)}
+.tool-info.on{color:var(--ok);font-weight:600}
+.tool-info.alerta{color:var(--perigo);font-weight:600}
+.tool-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0}
+.tool-row label{font-size:13px}
+.tool-row > div{display:flex;align-items:center;gap:5px;color:var(--tinta-fraca);font-size:13px}
+.tool-row input{width:66px;background:var(--casco);border:1px solid var(--painel-borda);color:var(--tinta);
+  border-radius:7px;padding:6px 8px;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+.tool-row input:focus{outline:none;border-color:var(--agua)}
+.tool-btns{display:flex;gap:8px}
+.tbtn{flex:1;background:var(--boia);border:none;color:#201003;border-radius:10px;padding:11px;
+  font-weight:700;font-size:13px;cursor:pointer}
+.tbtn:active{transform:scale(.97)}
+.tbtn.sec{background:none;border:1px solid var(--painel-borda);color:var(--tinta)}
+.tbtn.ativo{background:var(--ok);color:#06241a}
+
+/* ---- Banner do alarme de fundeio ---- */
+.alarme-fundeio{position:fixed;z-index:900;left:max(12px,env(safe-area-inset-left,0px));
+  right:max(12px,env(safe-area-inset-right,0px));
+  top:calc(98px + env(safe-area-inset-top,0px));
+  display:flex;align-items:center;gap:10px;
+  background:var(--perigo);color:#fff;border-radius:12px;padding:12px 14px;
+  box-shadow:var(--sombra);font-weight:600;font-size:13px;animation:pisca 1s steps(1) infinite}
+.alarme-fundeio button{margin-left:auto;background:#fff;color:var(--perigo);border:none;
+  border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;flex:none}
+@keyframes pisca{50%{background:#a8282c}}
+@media (prefers-reduced-motion:reduce){.alarme-fundeio{animation:none}}
+
 </style>
 </head>
 <body>
@@ -311,6 +348,10 @@ body{
     <svg viewBox="0 0 24 24"><path d="M3 12c3-4 7-6 11-6 3 0 5 1.5 7 3-2 1.5-4 3-7 3-4 0-8-2-11-6z" transform="translate(0 6)"/><circle cx="9" cy="16" r="1" fill="currentColor"/><path d="M14 9l3-3M14 9l3 1"/></svg>
     Pesca
   </button>
+  <button class="btn" id="b-mais">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>
+    Mais
+  </button>
 </div>
 
 <!-- Folha de camadas -->
@@ -360,6 +401,53 @@ body{
   <div class="dica" style="text-align:left;margin:0 0 10px">Cada perfil guarda suas próprias rotas e pontos de pesca, separados. Troque de perfil para não misturar tudo no mesmo mapa.</div>
   <div id="lista-perfis"></div>
   <button class="largar sec" id="b-novo-perfil" style="margin-top:12px">+ Novo perfil</button>
+</div>
+
+<!-- Folha de ferramentas (Mais) -->
+<div class="folha" id="folha-tools">
+  <div class="puxador"></div>
+  <h2>Mais ferramentas</h2>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>🧭 Trilha (track)</b><span id="trilha-stat" class="tool-info">parada</span></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Grava o caminho percorrido, pra voltar pelo mesmo trajeto. Precisa do GPS (Barco) ligado.</div>
+    <div class="tool-btns">
+      <button class="tbtn" id="b-trilha">Gravar</button>
+      <button class="tbtn sec" id="b-trilha-limpar">Limpar</button>
+    </div>
+  </div>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>⚓ Alarme de fundeio</b><span id="fundeio-stat" class="tool-info">desligado</span></div>
+    <div class="tool-row"><label>Raio do alarme</label><div><input id="in-raio" type="number" inputmode="numeric" min="5" step="5" value="30"> m</div></div>
+    <div class="dica" style="text-align:left;margin:6px 0 8px">Dispara um alarme se o barco arrastar além do raio. Precisa do GPS ligado.</div>
+    <div class="tool-btns">
+      <button class="tbtn" id="b-fundear">Fundear aqui</button>
+      <button class="tbtn sec" id="b-levantar">Levantar âncora</button>
+    </div>
+  </div>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>💾 Backup das rotas e pontos (GPX)</b></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Salve/partilhe o perfil atual, ou traga pontos de outro app/celular.</div>
+    <div class="tool-btns">
+      <button class="tbtn" id="b-exportar">Exportar</button>
+      <button class="tbtn sec" id="b-importar">Importar</button>
+    </div>
+  </div>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>📍 Compartilhar minha posição</b></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Envia sua localização atual (link de mapa) pelo WhatsApp ou outro app.</div>
+    <button class="tbtn" id="b-compartilhar" style="width:100%">Enviar minha localização</button>
+  </div>
+</div>
+<input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
+
+<!-- Banner do alarme de fundeio -->
+<div class="alarme-fundeio" id="alarme-fundeio" hidden>
+  <span>⚓ ARRASTANDO! O barco saiu do círculo de fundeio.</span>
+  <button id="b-silenciar">Silenciar</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -478,7 +566,7 @@ function carregarPerfis(){
     try{ pe=JSON.parse(localStorage.getItem('rea.pesca')||'[]'); }catch(e){}
     lista=[{id:'p'+Date.now(), nome:'Principal', waypoints:wp, pescas:pe}];
   }
-  lista.forEach(p=>{ p.waypoints=p.waypoints||[]; p.pescas=p.pescas||[]; });
+  lista.forEach(p=>{ p.waypoints=p.waypoints||[]; p.pescas=p.pescas||[]; p.trilha=p.trilha||[]; });
   return lista;
 }
 perfis = carregarPerfis();
@@ -601,7 +689,7 @@ function salvarPesca(){ salvarPerfis(); }
 function aplicarPerfil(){
   waypoints = perfilAtual().waypoints;
   pescas = perfilAtual().pescas;
-  redesenhar(); redesenharPesca(); atualizarPainel();
+  redesenhar(); redesenharPesca(); redesenharTrilha(); atualizarPainel();
   atualizarPilulaPerfil();
 }
 function trocarPerfil(id){
@@ -779,6 +867,8 @@ function onPos(p){
     if(!vetor){ vetor=L.polyline(pts,{color:'#ff7a1a',weight:3,opacity:.9,dashArray:'7 7'}).addTo(map); }
     else vetor.setLatLngs(pts);
   } else if(vetor){ map.removeLayer(vetor); vetor=null; }
+  if(gravando) adicionarTrilha(c.latitude,c.longitude);
+  if(fundeio) checarFundeio(c.latitude,c.longitude);
   if(seguindo) map.setView(ll, Math.max(map.getZoom(),14),{animate:true});
   atualizarPainel();
 }
@@ -805,8 +895,9 @@ const fCamadas=document.getElementById('folha-camadas');
 const fRota=document.getElementById('folha-rota');
 const fPesca=document.getElementById('folha-pesca');
 const fPerfis=document.getElementById('folha-perfis');
+const fTools=document.getElementById('folha-tools');
 function abrir(f){ f.classList.add('aberta'); veu.classList.add('on'); }
-function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); fPesca.classList.remove('aberta'); fPerfis.classList.remove('aberta'); veu.classList.remove('on'); }
+function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); fPesca.classList.remove('aberta'); fPerfis.classList.remove('aberta'); fTools.classList.remove('aberta'); veu.classList.remove('on'); }
 veu.onclick=fecharTudo;
 
 document.getElementById('perfil-pill').onclick=()=>{ renderPerfis(); abrir(fPerfis); };
@@ -834,6 +925,208 @@ fCamadas.querySelectorAll('[data-over]').forEach(o=>o.onclick=()=>{
 const opGebco=fCamadas.querySelector('[data-gebco]');
 opGebco.onclick=()=>{ const on=!opGebco.classList.contains('sel'); opGebco.classList.toggle('sel',on); toggleGebco(on); };
 
+/* ================= Trilha (track) ================= */
+let gravando=false, trilhaLinha=null, ultTrilha=null;
+function redesenharTrilha(){
+  if(trilhaLinha){ map.removeLayer(trilhaLinha); trilhaLinha=null; }
+  const tr=perfilAtual().trilha;
+  if(tr && tr.length>=2){
+    trilhaLinha=L.polyline(tr.map(p=>[p.lat,p.lng]),{color:'#36c08a',weight:4,opacity:.8}).addTo(map);
+  }
+  atualizarTrilhaStat();
+}
+function distanciaTrilhaMN(){
+  const tr=perfilAtual().trilha; let d=0;
+  for(let i=1;i<tr.length;i++) d+=haversineM(tr[i-1],tr[i]);
+  return d*M_PARA_MN;
+}
+function atualizarTrilhaStat(){
+  const el=document.getElementById('trilha-stat'); if(!el) return;
+  const n=perfilAtual().trilha.length;
+  if(gravando){ el.textContent='gravando · '+distanciaTrilhaMN().toFixed(2)+' MN'; el.className='tool-info on'; }
+  else if(n){ el.textContent=distanciaTrilhaMN().toFixed(2)+' MN ('+n+' pts)'; el.className='tool-info'; }
+  else { el.textContent='parada'; el.className='tool-info'; }
+  const b=document.getElementById('b-trilha'); if(b){ b.textContent=gravando?'Parar':'Gravar'; b.classList.toggle('ativo',gravando); }
+}
+function adicionarTrilha(lat,lng){
+  const tr=perfilAtual().trilha;
+  if(ultTrilha && haversineM(ultTrilha,{lat,lng})<5) return; // ignora ruído < 5 m
+  tr.push({lat,lng,t:Date.now()}); ultTrilha={lat,lng};
+  if(tr.length>=2){
+    if(!trilhaLinha) trilhaLinha=L.polyline(tr.map(p=>[p.lat,p.lng]),{color:'#36c08a',weight:4,opacity:.8}).addTo(map);
+    else trilhaLinha.addLatLng([lat,lng]);
+  }
+  salvarPerfis(); atualizarTrilhaStat();
+}
+function toggleTrilha(){
+  gravando=!gravando;
+  if(gravando){
+    ultTrilha=posAtual?{lat:posAtual.lat,lng:posAtual.lng}:null;
+    if(posAtual) adicionarTrilha(posAtual.lat,posAtual.lng);
+    if(watchId==null){ document.getElementById('b-gps').click(); }
+    toast('Gravando trilha');
+  } else toast('Trilha pausada');
+  atualizarTrilhaStat();
+}
+function limparTrilha(){
+  if(perfilAtual().trilha.length===0){ toast('Não há trilha'); return; }
+  perfilAtual().trilha.length=0; ultTrilha=null; salvarPerfis(); redesenharTrilha(); toast('Trilha apagada');
+}
+document.getElementById('b-trilha').onclick=toggleTrilha;
+document.getElementById('b-trilha-limpar').onclick=limparTrilha;
+
+/* ================= Alarme de fundeio ================= */
+let fundeio=null, marcaFundeio=null, circFundeio=null, alarmando=false, alarmeSilenciado=false, audioCtx=null, beepTimer=null;
+try{ const v=localStorage.getItem('rea.fundeio'); if(v) fundeio=JSON.parse(v); }catch(e){}
+function salvarFundeio(){ try{ fundeio?localStorage.setItem('rea.fundeio',JSON.stringify(fundeio)):localStorage.removeItem('rea.fundeio'); }catch(e){} }
+function desenharFundeio(){
+  if(marcaFundeio){ map.removeLayer(marcaFundeio); marcaFundeio=null; }
+  if(circFundeio){ map.removeLayer(circFundeio); circFundeio=null; }
+  if(!fundeio) return;
+  circFundeio=L.circle([fundeio.lat,fundeio.lng],{radius:fundeio.raio,color:'#e5484d',weight:2,fillColor:'#e5484d',fillOpacity:.08}).addTo(map);
+  marcaFundeio=L.marker([fundeio.lat,fundeio.lng],{icon:L.divIcon({className:'',html:'<div class="pin-ancora">⚓</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map);
+}
+function atualizarFundeioStat(){
+  const el=document.getElementById('fundeio-stat'); if(!el) return;
+  if(fundeio){ el.textContent='ativo · '+fundeio.raio+' m'; el.className='tool-info on'; }
+  else { el.textContent='desligado'; el.className='tool-info'; }
+}
+function fundearAqui(){
+  const raio=Math.max(5, parseInt(document.getElementById('in-raio').value,10)||30);
+  const c = posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter();
+  fundeio={lat:c.lat,lng:c.lng,raio}; alarmeSilenciado=false;
+  salvarFundeio(); desenharFundeio(); atualizarFundeioStat();
+  if(!posAtual && watchId==null){ document.getElementById('b-gps').click(); }
+  toast('Fundeio ativo — raio '+raio+' m');
+}
+function levantarAncora(){
+  fundeio=null; alarmeSilenciado=false; pararAlarme(); salvarFundeio(); desenharFundeio(); atualizarFundeioStat();
+  toast('Âncora levantada');
+}
+function checarFundeio(lat,lng){
+  if(!fundeio) return;
+  const d=haversineM({lat,lng},fundeio);
+  if(d>fundeio.raio){ if(!alarmeSilenciado && !alarmando) dispararAlarme(); }
+  else { alarmeSilenciado=false; if(alarmando) pararAlarme(); }
+}
+function beep(){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='square'; o.frequency.value=880; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.0001,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25,audioCtx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.35);
+    o.start(); o.stop(audioCtx.currentTime+0.37);
+  }catch(e){}
+}
+function dispararAlarme(){
+  alarmando=true;
+  document.getElementById('alarme-fundeio').hidden=false;
+  beep(); if(beepTimer) clearInterval(beepTimer); beepTimer=setInterval(beep,900);
+  if(navigator.vibrate) navigator.vibrate([500,250,500,250,500]);
+}
+function pararAlarme(){
+  alarmando=false;
+  document.getElementById('alarme-fundeio').hidden=true;
+  if(beepTimer){ clearInterval(beepTimer); beepTimer=null; }
+  if(navigator.vibrate) navigator.vibrate(0);
+}
+document.getElementById('b-fundear').onclick=fundearAqui;
+document.getElementById('b-levantar').onclick=levantarAncora;
+document.getElementById('b-silenciar').onclick=()=>{ alarmeSilenciado=true; pararAlarme(); toast('Alarme silenciado (fundeio continua ativo)'); };
+// pino da âncora
+const estiloAncora=document.createElement('style');
+estiloAncora.textContent='.pin-ancora{width:26px;height:26px;border-radius:50%;background:#e5484d;color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}';
+document.head.appendChild(estiloAncora);
+
+/* ================= Compartilhar / GPX ================= */
+function capPlugin(n){ return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[n]; }
+async function compartilhar(texto, titulo){
+  const S=capPlugin('Share');
+  try{
+    if(S){ await S.share({title:titulo||'NavegaDor', text:texto, dialogTitle:titulo||'Compartilhar'}); return true; }
+    if(navigator.share){ await navigator.share({title:titulo||'NavegaDor', text:texto}); return true; }
+  }catch(e){ if(e && e.name==='AbortError') return true; }
+  return false;
+}
+async function compartilharPosicao(){
+  const c = posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter();
+  const link='https://www.google.com/maps?q='+c.lat.toFixed(5)+','+c.lng.toFixed(5);
+  const texto='Minha posição (NavegaDor):\n'+c.lat.toFixed(5)+', '+c.lng.toFixed(5)+'\n'+link+(posAtual?'':'\n(posição do mapa — GPS desligado)');
+  const ok=await compartilhar(texto,'Minha posição');
+  if(!ok) toast(link);
+}
+document.getElementById('b-compartilhar').onclick=compartilharPosicao;
+
+function escXml(s){ return String(s==null?'':s).replace(/[<>&'"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c])); }
+function montarGpx(){
+  let x='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="NavegaDor" xmlns="http://www.topografix.com/GPX/1/1">\n';
+  pescas.forEach(p=>{
+    const desc=(p.prof!=null&&p.prof!==''?('prof '+p.prof+'m '):'')+(p.nota||'');
+    x+='<wpt lat="'+p.lat+'" lon="'+p.lng+'"><name>'+escXml(p.nome)+'</name><type>pesca</type>'+(desc.trim()?'<desc>'+escXml(desc.trim())+'</desc>':'')+'</wpt>\n';
+  });
+  if(waypoints.length){ x+='<rte><name>Rota</name>\n'; waypoints.forEach((w,i)=>{ x+='<rtept lat="'+w.lat+'" lon="'+w.lng+'"><name>P'+(i+1)+'</name></rtept>\n'; }); x+='</rte>\n'; }
+  const tr=perfilAtual().trilha;
+  if(tr.length){ x+='<trk><name>Trilha</name><trkseg>\n'; tr.forEach(pt=>{ x+='<trkpt lat="'+pt.lat+'" lon="'+pt.lng+'">'+(pt.t?'<time>'+new Date(pt.t).toISOString()+'</time>':'')+'</trkpt>\n'; }); x+='</trkseg></trk>\n'; }
+  x+='</gpx>\n'; return x;
+}
+async function exportarGpx(){
+  if(!waypoints.length && !pescas.length && !perfilAtual().trilha.length){ toast('Nada para exportar neste perfil'); return; }
+  const nome='navegador-'+perfilAtual().nome.replace(/[^\w\-]+/g,'_')+'.gpx';
+  const conteudo=montarGpx();
+  const FS=capPlugin('Filesystem'), S=capPlugin('Share');
+  if(FS && S){
+    try{
+      const res=await FS.writeFile({path:nome, data:conteudo, directory:'CACHE', encoding:'utf8'});
+      await S.share({title:nome, url:res.uri, dialogTitle:'Exportar GPX'});
+      return;
+    }catch(e){ if(e && e.name==='AbortError') return; toast('Falha ao exportar'); return; }
+  }
+  try{
+    const blob=new Blob([conteudo],{type:'application/gpx+xml'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+    toast('GPX gerado');
+  }catch(e){ toast('Falha ao exportar'); }
+}
+function importarGpxTexto(texto){
+  let doc;
+  try{ doc=new DOMParser().parseFromString(texto,'application/xml'); }catch(e){ toast('Arquivo inválido'); return; }
+  if(doc.getElementsByTagName('parsererror').length){ toast('GPX inválido'); return; }
+  let nw=0, np=0;
+  const wpts=doc.getElementsByTagName('wpt');
+  for(let i=0;i<wpts.length;i++){
+    const w=wpts[i], lat=parseFloat(w.getAttribute('lat')), lng=parseFloat(w.getAttribute('lon'));
+    if(isNaN(lat)||isNaN(lng)) continue;
+    const nm=w.getElementsByTagName('name'), ds=w.getElementsByTagName('desc');
+    pescas.push({id:Date.now()+i, lat, lng, tipo:'rede', nome:(nm.length?nm[0].textContent:'Ponto '+(np+1)), nota:(ds.length?ds[0].textContent:''), t:Date.now()}); np++;
+  }
+  let rpts=doc.getElementsByTagName('rtept');
+  if(!rpts.length) rpts=doc.getElementsByTagName('trkpt');
+  for(let i=0;i<rpts.length;i++){
+    const w=rpts[i], lat=parseFloat(w.getAttribute('lat')), lng=parseFloat(w.getAttribute('lon'));
+    if(!isNaN(lat)&&!isNaN(lng)){ waypoints.push({lat,lng}); nw++; }
+  }
+  salvarPerfis(); redesenhar(); redesenharPesca(); atualizarPainel();
+  toast('Importado: '+nw+' ponto(s) de rota, '+np+' de pesca');
+}
+const fileGpx=document.getElementById('file-gpx');
+document.getElementById('b-importar').onclick=()=>fileGpx.click();
+fileGpx.onchange=()=>{
+  const f=fileGpx.files && fileGpx.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ importarGpxTexto(String(rd.result)); fileGpx.value=''; };
+  rd.onerror=()=>{ toast('Não consegui ler o arquivo'); fileGpx.value=''; };
+  rd.readAsText(f);
+};
+document.getElementById('b-exportar').onclick=exportarGpx;
+
+/* botão Mais */
+document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
+
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
@@ -845,6 +1138,9 @@ document.getElementById('b-aviso-ok').onclick=()=>{
 };
 redesenhar();
 redesenharPesca();
+redesenharTrilha();
+desenharFundeio();
+atualizarFundeioStat();
 atualizarPilulaPerfil();
 atualizarPainel();
 // atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
