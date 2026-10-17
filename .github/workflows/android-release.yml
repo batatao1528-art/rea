@@ -7,6 +7,15 @@ name: Gerar AAB assinado NavegaDor
 on:
   workflow_dispatch:
   push:
+    branches:
+      - ccr-3f8cc969-a09oo5
+      - main
+    paths:
+      - 'app/**'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - '.github/workflows/android-release.yml'
     tags:
       - 'v*'
 
