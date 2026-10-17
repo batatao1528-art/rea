@@ -282,7 +282,7 @@ body{
   font-weight:700;font-size:13px;cursor:pointer}
 .tbtn:active{transform:scale(.97)}
 .tbtn.sec{background:none;border:1px solid var(--painel-borda);color:var(--tinta)}
-.tbtn.ativo{background:var(--ok);color:#06241a}
+.tbtn.ativo{background:var(--boia);color:#201003}
 
 /* ---- Banner do alarme de fundeio ---- */
 .alarme-fundeio{position:fixed;z-index:900;left:max(12px,env(safe-area-inset-left,0px));
@@ -991,23 +991,36 @@ function atualizarFundeioStat(){
   if(fundeio){ el.textContent='ativo · '+fundeio.raio+' m'; el.className='tool-info on'; }
   else { el.textContent='desligado'; el.className='tool-info'; }
 }
+let foraCont=0;
 function fundearAqui(){
+  // exige um sinal de GPS real: a âncora tem de ficar sobre o barco, não no centro do mapa
+  if(!posAtual){
+    if(watchId==null){ document.getElementById('b-gps').click(); }
+    toast('Ligue o Barco (GPS) e espere o sinal antes de fundear');
+    return;
+  }
   const raio=Math.max(5, parseInt(document.getElementById('in-raio').value,10)||30);
-  const c = posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter();
-  fundeio={lat:c.lat,lng:c.lng,raio}; alarmeSilenciado=false;
+  fundeio={lat:posAtual.lat,lng:posAtual.lng,raio}; alarmeSilenciado=false; foraCont=0;
   salvarFundeio(); desenharFundeio(); atualizarFundeioStat();
-  if(!posAtual && watchId==null){ document.getElementById('b-gps').click(); }
   toast('Fundeio ativo — raio '+raio+' m');
 }
 function levantarAncora(){
-  fundeio=null; alarmeSilenciado=false; pararAlarme(); salvarFundeio(); desenharFundeio(); atualizarFundeioStat();
+  fundeio=null; alarmeSilenciado=false; foraCont=0; pararAlarme(); salvarFundeio(); desenharFundeio(); atualizarFundeioStat();
   toast('Âncora levantada');
 }
 function checarFundeio(lat,lng){
   if(!fundeio) return;
   const d=haversineM({lat,lng},fundeio);
-  if(d>fundeio.raio){ if(!alarmeSilenciado && !alarmando) dispararAlarme(); }
-  else { alarmeSilenciado=false; if(alarmando) pararAlarme(); }
+  // só conta como "fora" se estiver fora com folga além da imprecisão do GPS
+  const acc=(posAtual && posAtual.acc) ? Math.min(posAtual.acc,25) : 0;
+  const fora = (d - acc) > fundeio.raio;
+  if(fora){
+    foraCont++;
+    if(foraCont>=2 && !alarmeSilenciado && !alarmando) dispararAlarme();
+  } else {
+    foraCont=0; alarmeSilenciado=false;
+    if(alarmando) pararAlarme();
+  }
 }
 function beep(){
   try{
