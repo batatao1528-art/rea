@@ -4,15 +4,15 @@
  * - Cache dos tiles de mapa já visitados (cache-first), base da navegação offline:
  *   as áreas que você abrir com internet ficam disponíveis depois sem sinal.
  */
-const APP_CACHE = 'carta-app-v1';
+const APP_CACHE = 'carta-app-v2';
 const TILE_CACHE = 'carta-tiles-v1';
 const APP_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon.svg',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
+  './vendor/leaflet/leaflet.css',
+  './vendor/leaflet/leaflet.js'
 ];
 const TILE_HOSTS = [
   'tile.openstreetmap.org',
