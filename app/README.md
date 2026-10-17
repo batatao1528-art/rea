@@ -1,4 +1,4 @@
-# Carta Náutica Livre — protótipo
+# NavegaDor — protótipo
 
 App de navegação náutica **próprio**, sem mensalidade e sem login, usando
 cartas e dados **abertos**. Protótipo navegável (v0.1).

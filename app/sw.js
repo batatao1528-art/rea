@@ -1,4 +1,4 @@
-/* Service worker da Carta Náutica Livre.
+/* Service worker do NavegaDor.
  * - Deixa o app instalável.
  * - Cache do "casco" do app (HTML/CSS/JS) para abrir offline.
  * - Cache dos tiles de mapa já visitados (cache-first), base da navegação offline:
