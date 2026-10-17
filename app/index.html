@@ -173,6 +173,39 @@ body{
 .leaflet-control-attribution{font-size:9px!important;background:rgba(10,24,36,.7)!important;color:var(--tinta-fraca)!important}
 .leaflet-control-attribution a{color:var(--agua)!important}
 .leaflet-bar a{background:var(--painel)!important;color:var(--tinta)!important;border-color:var(--painel-borda)!important}
+
+/* ---- Pesca ---- */
+.largar{width:100%;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--ok);border:none;color:#06241a;border-radius:12px;padding:13px;
+  font-weight:700;font-size:14px;cursor:pointer}
+.largar svg{width:20px;height:20px;stroke:#06241a;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.largar.sec{background:none;border:1px solid var(--ok);color:var(--ok);margin-top:8px;font-size:13px}
+.largar.sec.ativo{background:rgba(54,192,138,.16)}
+.dica{font-size:11px;color:var(--tinta-fraca);text-align:center;margin-top:10px}
+.pesca-item{display:flex;align-items:flex-start;gap:10px;padding:12px 6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.pesca-item .marca{width:30px;height:30px;border-radius:50%;background:var(--ok);color:#06241a;
+  display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.pesca-item .corpo{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.pesca-item .linha1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pesca-item .nome{font-weight:600;background:none;border:none;color:var(--tinta);font-size:14px;
+  border-bottom:1px dashed transparent;padding:1px 0;min-width:60px;max-width:150px}
+.pesca-item .nome:focus{outline:none;border-bottom-color:var(--ok)}
+.pesca-item .tempo{font-size:11px;color:var(--boia);font-variant-numeric:tabular-nums}
+.pesca-item .meta{font-size:11px;color:var(--tinta-fraca);font-variant-numeric:tabular-nums}
+.pesca-item .nota{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--painel-borda);
+  color:var(--tinta);border-radius:8px;padding:6px 8px;font-size:12px;resize:none;font-family:inherit}
+.pesca-item .nota:focus{outline:none;border-color:var(--ok)}
+.pesca-item .tipos{display:flex;gap:6px}
+.chip{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--painel-borda);
+  background:none;color:var(--tinta-fraca);cursor:pointer}
+.chip.on{background:var(--ok);border-color:var(--ok);color:#06241a;font-weight:600}
+.pesca-item .acoes{display:flex;flex-direction:column;gap:6px;align-items:center}
+.pesca-item .mini{background:none;border:none;color:var(--tinta-fraca);padding:4px;cursor:pointer}
+.pesca-item .mini svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9}
+.pin-pesca{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  background:var(--ok);border:2px solid #fff;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.pin-pesca span{transform:rotate(45deg);font-size:15px}
 </style>
 </head>
 <body>
@@ -205,7 +238,7 @@ body{
   </button>
   <button class="btn" id="b-gps">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-    Meu barco
+    Barco
   </button>
   <button class="btn primario" id="b-marcar">
     <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
@@ -214,6 +247,10 @@ body{
   <button class="btn" id="b-rota">
     <svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M8 16.5c4-1 8-5 8.5-9"/></svg>
     Rota
+  </button>
+  <button class="btn" id="b-pesca">
+    <svg viewBox="0 0 24 24"><path d="M3 12c3-4 7-6 11-6 3 0 5 1.5 7 3-2 1.5-4 3-7 3-4 0-8-2-11-6z" transform="translate(0 6)"/><circle cx="9" cy="16" r="1" fill="currentColor"/><path d="M14 9l3-3M14 9l3 1"/></svg>
+    Pesca
   </button>
 </div>
 
@@ -240,6 +277,19 @@ body{
     <div><div class="v" id="r-rumo">—</div><div class="l">próx. rumo</div></div>
   </div>
   <button class="limpar" id="b-limpar">Apagar toda a rota</button>
+</div>
+
+<!-- Folha de pesca -->
+<div class="folha" id="folha-pesca">
+  <div class="puxador"></div>
+  <h2>Pontos de pesca <span class="conta" id="conta-pesca">0 pontos</span></h2>
+  <button class="largar" id="b-largar">
+    <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+    Largar aqui (minha posição)
+  </button>
+  <div class="dica" id="dica-pesca">Ou toque em “Largar no mapa” e depois no local exato.</div>
+  <button class="largar sec" id="b-largar-mapa">Largar no mapa</button>
+  <div id="lista-pesca"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -391,18 +441,118 @@ function renderLista(){
 }
 
 /* ---------------- Modo marcar ---------------- */
-let modoMarcar=false;
+let modoMarcar=false, modoPesca=false;
 function setMarcar(on){
   modoMarcar=on;
+  if(on){ modoPesca=false; document.getElementById('b-largar-mapa').classList.remove('ativo'); }
   document.getElementById('b-marcar').classList.toggle('ativo',on);
-  map.getContainer().style.cursor=on?'crosshair':'';
+  map.getContainer().style.cursor=(on||modoPesca)?'crosshair':'';
   toast(on?'Toque no mapa para marcar pontos':'Modo marcar desligado');
 }
+function setPescaMapa(on){
+  modoPesca=on;
+  if(on){ modoMarcar=false; document.getElementById('b-marcar').classList.remove('ativo'); }
+  document.getElementById('b-largar-mapa').classList.toggle('ativo',on);
+  map.getContainer().style.cursor=(on||modoMarcar)?'crosshair':'';
+  if(on){ fecharTudo(); toast('Toque no mapa onde largou a rede'); }
+}
 map.on('click',e=>{
+  if(modoPesca){ largarPonto(e.latlng.lat,e.latlng.lng); setPescaMapa(false); return; }
   if(!modoMarcar) return;
   waypoints.push({lat:e.latlng.lat,lng:e.latlng.lng});
   salvar(); redesenhar(); atualizarPainel();
 });
+
+/* ---------------- Pontos de pesca ---------------- */
+const TIPOS_PESCA = {
+  rede:     {rotulo:'Rede',      icone:'🎣'},
+  pesqueiro:{rotulo:'Pesqueiro', icone:'🐟'},
+  poita:    {rotulo:'Poita',     icone:'⚓'}
+};
+let pescas = carregarPesca();
+let marcPesca = [];
+
+function carregarPesca(){
+  try{ return JSON.parse(localStorage.getItem('rea.pesca')||'[]'); }catch(e){ return []; }
+}
+function salvarPesca(){
+  try{ localStorage.setItem('rea.pesca', JSON.stringify(pescas)); }catch(e){}
+}
+function tempoDesde(t){
+  const s=Math.floor((Date.now()-t)/1000);
+  if(s<60) return 'agora';
+  const m=Math.floor(s/60); if(m<60) return 'há '+m+' min';
+  const h=Math.floor(m/60), mr=m%60;
+  if(h<24) return 'há '+h+'h'+(mr?(' '+mr+'min'):'');
+  const d=Math.floor(h/24); return 'há '+d+'d';
+}
+function proxNum(){
+  let n=0; pescas.forEach(p=>{ const m=/(\d+)$/.exec(p.nome||''); if(m) n=Math.max(n,+m[1]); });
+  return n+1;
+}
+
+function largarPonto(lat,lng){
+  const p={id:Date.now(), lat, lng, tipo:'rede', nome:'Rede '+proxNum(), nota:'', t:Date.now()};
+  pescas.push(p); salvarPesca(); redesenharPesca(); renderPesca();
+  toast('Ponto de pesca salvo');
+}
+function largarAqui(){
+  if(posAtual){ largarPonto(posAtual.lat, posAtual.lng); map.panTo([posAtual.lat,posAtual.lng]); }
+  else { const c=map.getCenter(); largarPonto(c.lat,c.lng); toast('Sem GPS — salvo no centro do mapa'); }
+}
+
+function redesenharPesca(){
+  marcPesca.forEach(m=>map.removeLayer(m)); marcPesca=[];
+  pescas.forEach(p=>{
+    const ic=(TIPOS_PESCA[p.tipo]||TIPOS_PESCA.rede).icone;
+    const m=L.marker([p.lat,p.lng],{
+      icon:L.divIcon({className:'',html:'<div class="pin-pesca"><span>'+ic+'</span></div>',iconSize:[30,30],iconAnchor:[15,30]})
+    }).addTo(map);
+    m.on('click',()=>{
+      const d = posAtual ? ' · '+(haversineM({lat:posAtual.lat,lng:posAtual.lng},p)*M_PARA_MN).toFixed(2)+' MN' : '';
+      toast((p.nome||'Pesca')+' · '+tempoDesde(p.t)+d);
+    });
+    marcPesca.push(m);
+  });
+}
+
+function renderPesca(){
+  const lista=document.getElementById('lista-pesca');
+  document.getElementById('conta-pesca').textContent=pescas.length+(pescas.length===1?' ponto':' pontos');
+  if(pescas.length===0){
+    lista.innerHTML='<div class="vazio"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg><br>Nenhum ponto ainda. Use <b>Largar aqui</b> quando soltar a rede.</div>';
+    return;
+  }
+  // mais recentes primeiro
+  const ordem=[...pescas].sort((a,b)=>b.t-a.t);
+  lista.innerHTML=ordem.map(p=>{
+    const dist = posAtual ? (haversineM({lat:posAtual.lat,lng:posAtual.lng},p)*M_PARA_MN).toFixed(2)+' MN do barco' : fmtCoord(p);
+    const chips=Object.keys(TIPOS_PESCA).map(k=>`<button class="chip ${p.tipo===k?'on':''}" data-tipo="${k}" data-id="${p.id}">${TIPOS_PESCA[k].rotulo}</button>`).join('');
+    return `<div class="pesca-item" data-id="${p.id}">
+      <div class="marca">${(TIPOS_PESCA[p.tipo]||TIPOS_PESCA.rede).icone}</div>
+      <div class="corpo">
+        <div class="linha1">
+          <input class="nome" data-id="${p.id}" value="${(p.nome||'').replace(/"/g,'&quot;')}" aria-label="Nome do ponto">
+          <span class="tempo">${tempoDesde(p.t)}</span>
+        </div>
+        <div class="meta">${dist}</div>
+        <div class="tipos">${chips}</div>
+        <textarea class="nota" data-id="${p.id}" rows="1" placeholder="Anotação (profundidade, isca, peixe...)">${(p.nota||'').replace(/</g,'&lt;')}</textarea>
+      </div>
+      <div class="acoes">
+        <button class="mini ir" data-id="${p.id}" aria-label="Centralizar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg></button>
+        <button class="mini del" data-id="${p.id}" aria-label="Apagar"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const acha=id=>pescas.find(p=>p.id==id);
+  lista.querySelectorAll('.nome').forEach(el=>el.onchange=()=>{ const p=acha(el.dataset.id); if(p){p.nome=el.value; salvarPesca();} });
+  lista.querySelectorAll('.nota').forEach(el=>el.onchange=()=>{ const p=acha(el.dataset.id); if(p){p.nota=el.value; salvarPesca();} });
+  lista.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ const p=acha(b.dataset.id); if(p){p.tipo=b.dataset.tipo; salvarPesca(); redesenharPesca(); renderPesca();} });
+  lista.querySelectorAll('.ir').forEach(b=>b.onclick=()=>{ const p=acha(b.dataset.id); if(p){ fecharTudo(); map.setView([p.lat,p.lng],15);} });
+  lista.querySelectorAll('.del').forEach(b=>b.onclick=()=>{ const i=pescas.findIndex(p=>p.id==b.dataset.id); if(i>=0){pescas.splice(i,1); salvarPesca(); redesenharPesca(); renderPesca();} });
+}
 
 /* ---------------- GPS ao vivo ---------------- */
 let barco=null, precisao=null, seguindo=false, posAtual=null, watchId=null;
@@ -469,13 +619,17 @@ document.getElementById('b-gps').onclick=()=>{
 const veu=document.getElementById('veu');
 const fCamadas=document.getElementById('folha-camadas');
 const fRota=document.getElementById('folha-rota');
+const fPesca=document.getElementById('folha-pesca');
 function abrir(f){ f.classList.add('aberta'); veu.classList.add('on'); }
-function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); veu.classList.remove('on'); }
+function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); fPesca.classList.remove('aberta'); veu.classList.remove('on'); }
 veu.onclick=fecharTudo;
 
 document.getElementById('b-camadas').onclick=()=>abrir(fCamadas);
 document.getElementById('b-rota').onclick=()=>{ renderLista(); abrir(fRota); };
 document.getElementById('b-marcar').onclick=()=>setMarcar(!modoMarcar);
+document.getElementById('b-pesca').onclick=()=>{ renderPesca(); abrir(fPesca); };
+document.getElementById('b-largar').onclick=()=>{ largarAqui(); };
+document.getElementById('b-largar-mapa').onclick=()=>setPescaMapa(!modoPesca);
 document.getElementById('b-limpar').onclick=()=>{
   if(waypoints.length===0){ toast('A rota já está vazia'); return; }
   waypoints=[]; salvar(); redesenhar(); atualizarPainel(); toast('Rota apagada');
@@ -497,8 +651,11 @@ if('serviceWorker' in navigator){
 
 /* ---------------- Início ---------------- */
 redesenhar();
+redesenharPesca();
 atualizarPainel();
-if(waypoints.length) toast(waypoints.length+' ponto(s) de rota carregado(s)');
+// atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
+setInterval(()=>{ if(fPesca.classList.contains('aberta')) renderPesca(); }, 30000);
+if(waypoints.length || pescas.length) toast((waypoints.length+' rota · '+pescas.length+' pesca carregados'));
 </script>
 </body>
 </html>
