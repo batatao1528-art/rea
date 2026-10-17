@@ -285,6 +285,16 @@ body{
 .tbtn.sec{background:none}
 .tbtn.ativo{background:var(--boia);color:#201003;border-color:var(--boia)}
 
+/* ---- Vento / ondas / maré ---- */
+.clima-painel{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.clima-card{background:rgba(47,127,179,.12);border:1px solid rgba(47,127,179,.28);
+  border-radius:10px;padding:10px}
+.clima-card .cl-rot{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-fraca)}
+.clima-card .cl-val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.clima-card .cl-sub{font-size:11px;color:var(--tinta-fraca);margin-top:2px}
+.clima-card.largo{grid-column:1 / -1}
+.cl-seta{display:inline-block;margin-left:4px}
+
 /* ---- Banner do alarme de fundeio ---- */
 .alarme-fundeio{position:fixed;z-index:900;left:max(12px,env(safe-area-inset-left,0px));
   right:max(12px,env(safe-area-inset-right,0px));
@@ -408,6 +418,13 @@ body{
 <div class="folha" id="folha-tools">
   <div class="puxador"></div>
   <h2>Mais ferramentas</h2>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>🌬️ Vento, ondas e maré</b><span id="clima-stat" class="tool-info">—</span></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Previsão da sua posição (Open-Meteo). Precisa de internet.</div>
+    <div id="clima-painel" class="clima-painel" hidden></div>
+    <button class="tbtn" id="b-clima" style="width:100%">Ver vento e maré aqui</button>
+  </div>
 
   <div class="tool-sec">
     <div class="tool-cab"><b>🧭 Trilha (track)</b><span id="trilha-stat" class="tool-info">parada</span></div>
@@ -1138,6 +1155,62 @@ fileGpx.onchange=()=>{
   rd.readAsText(f);
 };
 document.getElementById('b-exportar').onclick=exportarGpx;
+
+/* ================= Vento, ondas e maré ================= */
+function dirCardinal(d){
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+  return dirs[Math.round(d/22.5)%16];
+}
+function hhmm(iso){ try{ const d=new Date(iso); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }catch(e){ return '--:--'; } }
+function proximaMare(times, niveis){
+  const agora=Date.now(); let idx=0;
+  for(let i=0;i<times.length;i++){ if(new Date(times[i]).getTime()<=agora) idx=i; else break; }
+  const nivelAgora=niveis[idx];
+  const subindo = niveis[idx+1]!=null ? niveis[idx+1]>niveis[idx] : null;
+  let tipo=null, quando=null, valor=null;
+  for(let i=idx+1;i<niveis.length-1;i++){
+    const a=niveis[i-1], b=niveis[i], c=niveis[i+1];
+    if(a==null||b==null||c==null) continue;
+    if(b>=a && b>=c){ tipo='Preamar'; quando=times[i]; valor=b; break; }
+    if(b<=a && b<=c){ tipo='Baixamar'; quando=times[i]; valor=b; break; }
+  }
+  return {nivelAgora, subindo, tipo, quando, valor};
+}
+let buscandoClima=false;
+async function verClima(){
+  if(buscandoClima) return; buscandoClima=true;
+  const c = posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter();
+  const stat=document.getElementById('clima-stat'), painel=document.getElementById('clima-painel');
+  stat.textContent='buscando…';
+  const qs='latitude='+c.lat.toFixed(3)+'&longitude='+c.lng.toFixed(3);
+  try{
+    const [w,m]=await Promise.all([
+      fetch('https://api.open-meteo.com/v1/forecast?'+qs+'&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn').then(r=>r.json()).catch(()=>null),
+      fetch('https://marine-api.open-meteo.com/v1/marine?'+qs+'&current=wave_height,wave_direction&hourly=sea_level_height_msl&timezone=auto').then(r=>r.json()).catch(()=>null)
+    ]);
+    let html='';
+    const cw=w&&w.current;
+    if(cw){
+      html+='<div class="clima-card"><div class="cl-rot">Vento</div><div class="cl-val">'+Math.round(cw.wind_speed_10m)+' <span style="font-size:12px">nós</span></div><div class="cl-sub">de '+Math.round(cw.wind_direction_10m)+'° '+dirCardinal(cw.wind_direction_10m)+'</div></div>';
+      html+='<div class="clima-card"><div class="cl-rot">Rajada</div><div class="cl-val">'+Math.round(cw.wind_gusts_10m)+' <span style="font-size:12px">nós</span></div></div>';
+    }
+    const cm=m&&m.current;
+    if(cm && cm.wave_height!=null){
+      html+='<div class="clima-card"><div class="cl-rot">Ondas</div><div class="cl-val">'+Number(cm.wave_height).toFixed(1)+' <span style="font-size:12px">m</span></div>'+(cm.wave_direction!=null?'<div class="cl-sub">de '+Math.round(cm.wave_direction)+'°</div>':'')+'</div>';
+    }
+    if(m && m.hourly && m.hourly.sea_level_height_msl){
+      const mare=proximaMare(m.hourly.time, m.hourly.sea_level_height_msl);
+      const sub = mare.subindo==null ? '' : (mare.subindo?'subindo ▲':'baixando ▼');
+      const prox = mare.tipo ? (mare.tipo+' '+hhmm(mare.quando)+' ('+mare.valor.toFixed(1)+' m)') : '';
+      html+='<div class="clima-card largo"><div class="cl-rot">Maré (nível do mar)</div><div class="cl-val">'+(mare.nivelAgora!=null?Number(mare.nivelAgora).toFixed(2)+' m':'—')+' <span style="font-size:12px">'+sub+'</span></div>'+(prox?'<div class="cl-sub">Próxima: '+prox+'</div>':'')+'</div>';
+    }
+    if(!html){ stat.textContent='sem dados aqui'; painel.hidden=true; return; }
+    painel.innerHTML=html; painel.hidden=false;
+    stat.textContent='atualizado '+hhmm(new Date().toISOString());
+  }catch(e){ stat.textContent='sem internet'; }
+  finally{ buscandoClima=false; }
+}
+document.getElementById('b-clima').onclick=verClima;
 
 /* botão Mais */
 document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
