@@ -272,10 +272,29 @@ body{
   background:var(--agua);color:#06202e;font-weight:700;font-size:12px;
   padding:4px 9px;border-radius:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .sonda.raso{background:var(--perigo);color:#fff}
+
+/* ---- Mira central de profundidade ---- */
+.centro-prof{position:fixed;inset:0;z-index:420;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;pointer-events:none;gap:6px}
+.centro-prof .cruz{width:26px;height:26px;position:relative}
+.centro-prof .cruz::before,.centro-prof .cruz::after{content:"";position:absolute;background:rgba(255,255,255,.9);
+  box-shadow:0 0 2px rgba(0,0,0,.7)}
+.centro-prof .cruz::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
+.centro-prof .cruz::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
+.cp-chip{background:var(--agua);color:#06202e;font-weight:800;font-size:15px;
+  padding:5px 12px;border-radius:14px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);
+  font-variant-numeric:tabular-nums;min-width:56px;text-align:center}
+.cp-chip.raso{background:var(--perigo);color:#fff}
 </style>
 </head>
 <body>
 <div id="map"></div>
+
+<!-- Mira central com profundidade ao vivo (quando a camada de profundidade está ligada) -->
+<div class="centro-prof" id="centro-prof" hidden>
+  <div class="cruz"></div>
+  <div class="cp-chip" id="cp-chip">—</div>
+</div>
 
 <div class="hud">
   <div class="cartao" id="c-vel">
@@ -336,7 +355,7 @@ body{
   <div class="opcao" data-base="topo"><span class="ponto"></span><div class="txt"><b>Topográfico</b><div class="sub">Relevo e curvas de nível (OpenTopoMap)</div></div></div>
   <h2 style="margin-top:14px">Sobreposições</h2>
   <div class="opcao sel" data-over="seamark"><span class="ponto"></span><div class="txt"><b>Marcas náuticas</b><div class="sub">Boias, faróis, canais, sondagens — OpenSeaMap</div></div></div>
-  <div class="opcao" data-gebco="1"><span class="ponto"></span><div class="txt"><b>Profundidade (GEBCO)</b><div class="sub">Sombreia o fundo: escuro = fundo, claro = raso</div></div></div>
+  <div class="opcao" data-gebco="1"><span class="ponto"></span><div class="txt"><b>Profundidade (GEBCO)</b><div class="sub">Mostra a profundidade na mira do centro da tela e sombreia o fundo</div></div></div>
 
   <h2 style="margin-top:14px">Sondagem</h2>
   <div class="calado-box">
@@ -445,7 +464,9 @@ function toggleOverlay(on){
 }
 function toggleGebco(on){
   gebcoOn = on;
-  if(on){ gebco.addTo(map); toast('Profundidade GEBCO: referência, não é carta oficial'); }
+  const mira=document.getElementById('centro-prof');
+  if(mira) mira.hidden=!on;
+  if(on){ gebco.addTo(map); sondarCentro(); toast('Profundidade no centro da tela (referência)'); }
   else { map.removeLayer(gebco); }
   reordenar();
 }
@@ -893,6 +914,38 @@ async function sondar(lat,lng){
   } finally { sondando=false; }
 }
 map.on('contextmenu', e=>{ sondar(e.latlng.lat, e.latlng.lng); });
+
+/* ---- Profundidade ao vivo no centro da tela ---- */
+const sondaCache=new Map();
+let centroTimer=null, sondandoCentro=false;
+function pintarChip(el){
+  const chip=document.getElementById('cp-chip');
+  if(el==null){ chip.textContent='s/ dado'; chip.className='cp-chip'; return; }
+  if(el>=0){ chip.textContent='terra'; chip.className='cp-chip raso'; return; }
+  const prof=-el;
+  const raso = (!isNaN(calado) && calado>0 && prof<calado);
+  chip.textContent='~'+prof.toFixed(0)+' m';
+  chip.className='cp-chip'+(raso?' raso':'');
+}
+async function sondarCentro(){
+  if(!gebcoOn) return;
+  const c=map.getCenter();
+  const key=c.lat.toFixed(3)+','+c.lng.toFixed(3);
+  const chip=document.getElementById('cp-chip');
+  if(sondaCache.has(key)){ pintarChip(sondaCache.get(key)); return; }
+  if(sondandoCentro) return; sondandoCentro=true;
+  chip.textContent='…'; chip.className='cp-chip';
+  try{
+    const r=await fetch('https://api.opentopodata.org/v1/gebco2020?locations='+c.lat.toFixed(4)+','+c.lng.toFixed(4));
+    const j=await r.json();
+    const el=j && j.results && j.results[0] ? j.results[0].elevation : null;
+    sondaCache.set(key, el);
+    pintarChip(el);
+  }catch(e){ chip.textContent='sem rede'; chip.className='cp-chip'; }
+  finally{ sondandoCentro=false; }
+}
+function agendarCentro(){ if(!gebcoOn) return; clearTimeout(centroTimer); centroTimer=setTimeout(sondarCentro,600); }
+map.on('moveend', agendarCentro);
 
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
