@@ -241,6 +241,37 @@ body{
 .aviso-card #b-aviso-ok{margin-top:6px;width:100%;background:var(--boia);border:none;color:#201003;
   border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer}
 .aviso-card #b-aviso-ok:active{transform:scale(.97)}
+
+/* ---- Pílula de perfil ---- */
+.perfil-pill{
+  position:fixed;z-index:450;
+  top:calc(98px + env(safe-area-inset-top,0px));
+  left:max(12px,env(safe-area-inset-left,0px));
+  display:flex;align-items:center;gap:6px;
+  background:var(--painel);border:1px solid var(--painel-borda);
+  color:var(--tinta);border-radius:20px;padding:7px 12px;
+  font-size:13px;font-weight:600;cursor:pointer;backdrop-filter:blur(10px);box-shadow:var(--sombra)}
+.perfil-pill svg{width:15px;height:15px;stroke:var(--boia);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.perfil-pill .seta{width:14px;height:14px;stroke:var(--tinta-fraca)}
+.perfil-pill span{max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Lista de perfis ---- */
+.perfil-item{display:flex;align-items:center;gap:6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.perfil-item.ativo{background:rgba(255,122,26,.08);border-radius:10px}
+.perfil-sel{flex:1;min-width:0;display:flex;align-items:center;gap:12px;background:none;border:none;
+  color:var(--tinta);text-align:left;padding:12px 8px;cursor:pointer}
+.perfil-sel .pt{display:flex;flex-direction:column;min-width:0}
+.perfil-sel .pt b{font-size:14px}
+.perfil-sel .sub{font-size:11px;color:var(--tinta-fraca)}
+.perfil-item.ativo .ponto{background:var(--boia);border-color:var(--boia)}
+.perfil-item .mini{background:none;border:none;color:var(--tinta-fraca);padding:8px;cursor:pointer}
+.perfil-item .mini svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- Etiqueta de profundidade no mapa ---- */
+.sonda{transform:translate(-50%,-140%);white-space:nowrap;
+  background:var(--agua);color:#06202e;font-weight:700;font-size:12px;
+  padding:4px 9px;border-radius:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.sonda.raso{background:var(--perigo);color:#fff}
 </style>
 </head>
 <body>
@@ -263,6 +294,12 @@ body{
     <div class="uni" id="v-dist-uni">milhas náut.</div>
   </div>
 </div>
+
+<button class="perfil-pill" id="perfil-pill">
+  <svg viewBox="0 0 24 24"><path d="M12 2v7M5 9h14l-7 12L5 9z"/></svg>
+  <span id="perfil-nome">Principal</span>
+  <svg class="seta" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+</button>
 
 <div class="selo"><b>NavegaDor</b> · carta livre · sem mensalidade</div>
 
@@ -336,6 +373,15 @@ body{
   <div id="lista-pesca"></div>
 </div>
 
+<!-- Folha de perfis -->
+<div class="folha" id="folha-perfis">
+  <div class="puxador"></div>
+  <h2>Perfis</h2>
+  <div class="dica" style="text-align:left;margin:0 0 10px">Cada perfil guarda suas próprias rotas e pontos de pesca, separados. Troque de perfil para não misturar tudo no mesmo mapa.</div>
+  <div id="lista-perfis"></div>
+  <button class="largar sec" id="b-novo-perfil" style="margin-top:12px">+ Novo perfil</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Aviso de abertura (aparece toda vez) -->
@@ -371,7 +417,7 @@ const seamark = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.pn
 // Batimetria global GEBCO (profundidade de referência — NÃO é carta náutica oficial)
 const gebco = L.tileLayer.wms('https://wms.gebco.net/mapserv?', {
   layers:'GEBCO_LATEST', format:'image/png', version:'1.3.0',
-  opacity:0.55, attribution:'Profundidade © GEBCO'
+  opacity:0.7, attribution:'Profundidade © GEBCO'
 });
 
 const map = L.map('map',{ zoomControl:false, attributionControl:true })
@@ -421,6 +467,13 @@ function rumoEntre(a,b){
   const x=Math.cos(a.lat*rad)*Math.sin(b.lat*rad)-Math.sin(a.lat*rad)*Math.cos(b.lat*rad)*Math.cos(dLon);
   return (Math.atan2(y,x)*deg+360)%360;
 }
+function destino(lat,lng,brng,dist){
+  const R=6371000, rad=Math.PI/180, deg=180/Math.PI;
+  const d=dist/R, b=brng*rad, la1=lat*rad, lo1=lng*rad;
+  const la2=Math.asin(Math.sin(la1)*Math.cos(d)+Math.cos(la1)*Math.sin(d)*Math.cos(b));
+  const lo2=lo1+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la1), Math.cos(d)-Math.sin(la1)*Math.sin(la2));
+  return {lat:la2*deg, lng:lo2*deg};
+}
 function fmtCoord(ll){
   const la=Math.abs(ll.lat).toFixed(4)+(ll.lat>=0?'N':'S');
   const lo=Math.abs(ll.lng).toFixed(4)+(ll.lng>=0?'E':'W');
@@ -433,18 +486,37 @@ function toast(msg){
   clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1900);
 }
 
+/* ---------------- Perfis (projetos) ---------------- */
+let perfis, perfilId;
+function carregarPerfis(){
+  let lista=null;
+  try{ lista = JSON.parse(localStorage.getItem('rea.perfis')||'null'); }catch(e){}
+  if(!Array.isArray(lista) || lista.length===0){
+    // primeira vez: migra rota/pesca antigas para um perfil padrão
+    let wp=[], pe=[];
+    try{ wp=JSON.parse(localStorage.getItem('rea.wp')||'[]'); }catch(e){}
+    try{ pe=JSON.parse(localStorage.getItem('rea.pesca')||'[]'); }catch(e){}
+    lista=[{id:'p'+Date.now(), nome:'Principal', waypoints:wp, pescas:pe}];
+  }
+  lista.forEach(p=>{ p.waypoints=p.waypoints||[]; p.pescas=p.pescas||[]; });
+  return lista;
+}
+perfis = carregarPerfis();
+try{ perfilId = localStorage.getItem('rea.perfilAtivo'); }catch(e){ perfilId=null; }
+if(!perfis.some(p=>p.id===perfilId)) perfilId = perfis[0].id;
+function perfilAtual(){ return perfis.find(p=>p.id===perfilId) || perfis[0]; }
+function salvarPerfis(){
+  try{
+    localStorage.setItem('rea.perfis', JSON.stringify(perfis));
+    localStorage.setItem('rea.perfilAtivo', perfilId);
+  }catch(e){}
+}
+
 /* ---------------- Waypoints / rota ---------------- */
-let waypoints = carregar();
+let waypoints = perfilAtual().waypoints;
 let marcadores = [];
 let linhaRota = null;
-
-function carregar(){
-  try{ return JSON.parse(localStorage.getItem('rea.wp')||'[]'); }
-  catch(e){ return []; }
-}
-function salvar(){
-  try{ localStorage.setItem('rea.wp', JSON.stringify(waypoints)); }catch(e){}
-}
+function salvar(){ salvarPerfis(); }
 
 function iconeWp(n){
   return L.divIcon({
@@ -541,14 +613,61 @@ const TIPOS_PESCA = {
   pesqueiro:{rotulo:'Pesqueiro', icone:'🐟'},
   poita:    {rotulo:'Poita',     icone:'⚓'}
 };
-let pescas = carregarPesca();
+let pescas = perfilAtual().pescas;
 let marcPesca = [];
+function salvarPesca(){ salvarPerfis(); }
 
-function carregarPesca(){
-  try{ return JSON.parse(localStorage.getItem('rea.pesca')||'[]'); }catch(e){ return []; }
+/* ---- gerência de perfis ---- */
+function aplicarPerfil(){
+  waypoints = perfilAtual().waypoints;
+  pescas = perfilAtual().pescas;
+  redesenhar(); redesenharPesca(); atualizarPainel();
+  atualizarPilulaPerfil();
 }
-function salvarPesca(){
-  try{ localStorage.setItem('rea.pesca', JSON.stringify(pescas)); }catch(e){}
+function trocarPerfil(id){
+  if(!perfis.some(p=>p.id===id)) return;
+  perfilId=id; salvarPerfis(); aplicarPerfil(); renderPerfis();
+  toast('Perfil: '+perfilAtual().nome);
+}
+function novoPerfil(){
+  const nome=prompt('Nome do novo perfil:', 'Perfil '+(perfis.length+1));
+  if(nome==null) return;
+  const p={id:'p'+Date.now(), nome:(nome.trim()||('Perfil '+(perfis.length+1))), waypoints:[], pescas:[]};
+  perfis.push(p); perfilId=p.id; salvarPerfis(); aplicarPerfil(); renderPerfis();
+}
+function renomearPerfil(id){
+  const p=perfis.find(x=>x.id===id); if(!p) return;
+  const nome=prompt('Renomear perfil:', p.nome); if(nome==null) return;
+  p.nome=nome.trim()||p.nome; salvarPerfis(); renderPerfis(); atualizarPilulaPerfil();
+}
+function apagarPerfil(id){
+  if(perfis.length<=1){ toast('É preciso ter ao menos um perfil'); return; }
+  const p=perfis.find(x=>x.id===id); if(!p) return;
+  if(!confirm('Apagar o perfil "'+p.nome+'" e tudo nele (rotas e pontos de pesca)?')) return;
+  perfis=perfis.filter(x=>x.id!==id);
+  if(perfilId===id) perfilId=perfis[0].id;
+  salvarPerfis(); aplicarPerfil(); renderPerfis();
+}
+function atualizarPilulaPerfil(){
+  const el=document.getElementById('perfil-nome'); if(el) el.textContent=perfilAtual().nome;
+}
+function renderPerfis(){
+  const lista=document.getElementById('lista-perfis'); if(!lista) return;
+  lista.innerHTML=perfis.map(p=>{
+    const ativo=p.id===perfilId;
+    const nr=p.waypoints.length, np=p.pescas.length;
+    return `<div class="perfil-item ${ativo?'ativo':''}" data-id="${p.id}">
+      <button class="perfil-sel" data-id="${p.id}">
+        <span class="ponto"></span>
+        <span class="pt"><b>${p.nome.replace(/</g,'&lt;')}</b><span class="sub">${nr} ponto(s) de rota · ${np} de pesca</span></span>
+      </button>
+      <button class="mini ren" data-id="${p.id}" aria-label="Renomear"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      <button class="mini del" data-id="${p.id}" aria-label="Apagar"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+    </div>`;
+  }).join('');
+  lista.querySelectorAll('.perfil-sel').forEach(b=>b.onclick=()=>trocarPerfil(b.dataset.id));
+  lista.querySelectorAll('.ren').forEach(b=>b.onclick=()=>renomearPerfil(b.dataset.id));
+  lista.querySelectorAll('.del').forEach(b=>b.onclick=()=>apagarPerfil(b.dataset.id));
 }
 function tempoDesde(t){
   const s=Math.floor((Date.now()-t)/1000);
@@ -632,8 +751,9 @@ function renderPesca(){
 }
 
 /* ---------------- GPS ao vivo ---------------- */
-let barco=null, precisao=null, seguindo=false, posAtual=null, watchId=null;
-const svgBarco='<svg width="30" height="30" viewBox="0 0 30 30" class="barco"><path d="M15 2 L22 24 L15 19 L8 24 Z" fill="#ff7a1a" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+let barco=null, precisao=null, seguindo=false, posAtual=null, watchId=null, vetor=null;
+// barquinho visto de cima: proa pra cima (norte), gira com o rumo
+const svgBarco='<svg width="34" height="34" viewBox="0 0 34 34" class="barco"><path d="M17 3 C22 9 23 16 23 23 L23 27 C23 29 21 30 17 30 C13 30 11 29 11 27 L11 23 C11 16 12 9 17 3 Z" fill="#ff7a1a" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><line x1="17" y1="9" x2="17" y2="24" stroke="#fff" stroke-width="1.4" opacity="0.7"/></svg>';
 
 function atualizarPainel(){
   const vVel=document.getElementById('v-vel');
@@ -664,7 +784,7 @@ function onPos(p){
   posAtual={lat:c.latitude,lng:c.longitude,speed:c.speed,heading:c.heading,acc:c.accuracy};
   const ll=[c.latitude,c.longitude];
   if(!barco){
-    barco=L.marker(ll,{icon:L.divIcon({className:'',html:svgBarco,iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:1000}).addTo(map);
+    barco=L.marker(ll,{icon:L.divIcon({className:'',html:svgBarco,iconSize:[34,34],iconAnchor:[17,17]}),zIndexOffset:1000}).addTo(map);
     precisao=L.circle(ll,{radius:c.accuracy,color:'#ff7a1a',weight:1,fillColor:'#ff7a1a',fillOpacity:.1}).addTo(map);
   } else {
     barco.setLatLng(ll); precisao.setLatLng(ll).setRadius(c.accuracy);
@@ -672,6 +792,13 @@ function onPos(p){
   if(c.heading!=null && !isNaN(c.heading)){
     const el=barco.getElement(); if(el) el.querySelector('svg').style.transform='rotate('+c.heading+'deg)';
   }
+  // linha de proa (preditor): sai da proa e cresce com a velocidade (~3 min à frente)
+  if(c.heading!=null && !isNaN(c.heading) && c.speed!=null && c.speed>0.3){
+    const dst=destino(c.latitude,c.longitude,c.heading,c.speed*180);
+    const pts=[ll,[dst.lat,dst.lng]];
+    if(!vetor){ vetor=L.polyline(pts,{color:'#ff7a1a',weight:3,opacity:.9,dashArray:'7 7'}).addTo(map); }
+    else vetor.setLatLngs(pts);
+  } else if(vetor){ map.removeLayer(vetor); vetor=null; }
   if(seguindo) map.setView(ll, Math.max(map.getZoom(),14),{animate:true});
   atualizarPainel();
 }
@@ -697,9 +824,13 @@ const veu=document.getElementById('veu');
 const fCamadas=document.getElementById('folha-camadas');
 const fRota=document.getElementById('folha-rota');
 const fPesca=document.getElementById('folha-pesca');
+const fPerfis=document.getElementById('folha-perfis');
 function abrir(f){ f.classList.add('aberta'); veu.classList.add('on'); }
-function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); fPesca.classList.remove('aberta'); veu.classList.remove('on'); }
+function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); fPesca.classList.remove('aberta'); fPerfis.classList.remove('aberta'); veu.classList.remove('on'); }
 veu.onclick=fecharTudo;
+
+document.getElementById('perfil-pill').onclick=()=>{ renderPerfis(); abrir(fPerfis); };
+document.getElementById('b-novo-perfil').onclick=novoPerfil;
 
 document.getElementById('b-camadas').onclick=()=>abrir(fCamadas);
 document.getElementById('b-rota').onclick=()=>{ renderLista(); abrir(fRota); };
@@ -709,7 +840,7 @@ document.getElementById('b-largar').onclick=()=>{ largarAqui(); };
 document.getElementById('b-largar-mapa').onclick=()=>setPescaMapa(!modoPesca);
 document.getElementById('b-limpar').onclick=()=>{
   if(waypoints.length===0){ toast('A rota já está vazia'); return; }
-  waypoints=[]; salvar(); redesenhar(); atualizarPainel(); toast('Rota apagada');
+  waypoints.length=0; salvar(); redesenhar(); atualizarPainel(); toast('Rota apagada');
 };
 
 // seletor de camadas
@@ -732,7 +863,13 @@ inCalado.onchange=()=>{
   try{ localStorage.setItem('rea.calado', inCalado.value||''); }catch(e){}
 };
 
-let sondando=false;
+let sondando=false, marcaSonda=null;
+function mostrarSonda(lat,lng,texto,raso){
+  if(marcaSonda) map.removeLayer(marcaSonda);
+  marcaSonda=L.marker([lat,lng],{
+    icon:L.divIcon({className:'',html:'<div class="sonda '+(raso?'raso':'')+'">'+texto+'</div>',iconSize:[0,0],iconAnchor:[0,0]})
+  }).addTo(map);
+}
 async function sondar(lat,lng){
   if(sondando) return; sondando=true;
   toast('Consultando profundidade…');
@@ -741,14 +878,16 @@ async function sondar(lat,lng){
     const j=await r.json();
     const el=j && j.results && j.results[0] ? j.results[0].elevation : null;
     if(el==null){ toast('Sem dado de profundidade aqui'); return; }
-    if(el>=0){ toast('~'+el.toFixed(0)+' m ACIMA do nível do mar (terra/seco)'); return; }
+    if(el>=0){ mostrarSonda(lat,lng,'terra ~'+el.toFixed(0)+'m',true); toast('~'+el.toFixed(0)+' m ACIMA do nível do mar (terra/seco)'); return; }
     const prof=-el;
-    let msg='Profundidade ~'+prof.toFixed(0)+' m (GEBCO)';
+    let raso=false, extra='';
     if(!isNaN(calado) && calado>0){
       const folga=prof-calado;
-      msg += folga>0 ? ' · folga ~'+folga.toFixed(1)+' m' : ' · ⚠️ RASO p/ calado '+calado+' m';
+      if(folga>0){ extra=' · folga ~'+folga.toFixed(1)+' m'; }
+      else { raso=true; extra=' · ⚠️ RASO p/ calado '+calado+' m'; }
     }
-    toast(msg);
+    mostrarSonda(lat,lng,'~'+prof.toFixed(0)+' m', raso);
+    toast('Profundidade ~'+prof.toFixed(0)+' m (GEBCO)'+extra);
   }catch(e){
     toast('Falha ao consultar (sem internet?)');
   } finally { sondando=false; }
@@ -766,6 +905,7 @@ document.getElementById('b-aviso-ok').onclick=()=>{
 };
 redesenhar();
 redesenharPesca();
+atualizarPilulaPerfil();
 atualizarPainel();
 // atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
 setInterval(()=>{ if(fPesca.classList.contains('aberta')) renderPesca(); }, 30000);
