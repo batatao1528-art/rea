@@ -1,40 +1,28 @@
 /* Service worker do NavegaDor.
- * - Deixa o app instalável.
- * - Cache do "casco" do app (HTML/CSS/JS) para abrir offline.
- * - Cache dos tiles de mapa já visitados (cache-first), base da navegação offline:
- *   as áreas que você abrir com internet ficam disponíveis depois sem sinal.
+ * No app empacotado (Capacitor) e no PWA, a "tela" (HTML/CSS/JS) é sempre
+ * carregada da versão instalada — o SW NÃO cacheia o casco do app, para que
+ * toda atualização apareça na hora (sem ficar preso numa versão antiga).
+ * O SW serve só para cachear os tiles de mapa já visitados (cache-first),
+ * base da navegação offline: áreas abertas com internet ficam disponíveis
+ * depois sem sinal.
  */
-const APP_CACHE = 'carta-app-v8';
 const TILE_CACHE = 'carta-tiles-v1';
-const APP_ASSETS = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './icon.svg',
-  './vendor/leaflet/leaflet.css',
-  './vendor/leaflet/leaflet.js'
-];
 const TILE_HOSTS = [
   'tile.openstreetmap.org',
   'tiles.openseamap.org',
   'server.arcgisonline.com',
-  'tile.opentopomap.org'
+  'tile.opentopomap.org',
+  'wms.gebco.net'
 ];
 const MAX_TILES = 2000; // limite simples para não encher o dispositivo
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(APP_CACHE)
-      .then(c => Promise.allSettled(APP_ASSETS.map(u => c.add(u))))
-      .then(() => self.skipWaiting())
-  );
-});
+self.addEventListener('install', e => { self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== APP_CACHE && k !== TILE_CACHE).map(k => caches.delete(k))
-    )).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== TILE_CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -52,32 +40,19 @@ async function podarTiles(cache) {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
+  if (!ehTile(url)) return; // casco do app e tudo mais: deixa a rede/bundle resolver
 
-  if (ehTile(url)) {
-    // cache-first para tiles: offline nas áreas já vistas
-    e.respondWith((async () => {
-      const cache = await caches.open(TILE_CACHE);
-      const hit = await cache.match(e.request);
-      if (hit) return hit;
-      try {
-        const resp = await fetch(e.request);
-        if (resp.ok) { cache.put(e.request, resp.clone()); podarTiles(cache); }
-        return resp;
-      } catch (err) {
-        return hit || Response.error();
-      }
-    })());
-    return;
-  }
-
-  // app shell: cache-first com atualização em segundo plano
-  e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
-      if (resp.ok && url.origin === location.origin) {
-        const clone = resp.clone();
-        caches.open(APP_CACHE).then(c => c.put(e.request, clone));
-      }
+  // cache-first para tiles: offline nas áreas já vistas
+  e.respondWith((async () => {
+    const cache = await caches.open(TILE_CACHE);
+    const hit = await cache.match(e.request);
+    if (hit) return hit;
+    try {
+      const resp = await fetch(e.request);
+      if (resp.ok) { cache.put(e.request, resp.clone()); podarTiles(cache); }
       return resp;
-    }).catch(() => hit))
-  );
+    } catch (err) {
+      return hit || Response.error();
+    }
+  })());
 });

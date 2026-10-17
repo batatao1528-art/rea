@@ -214,14 +214,6 @@ body{
   box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .pin-pesca span{transform:rotate(45deg);font-size:15px}
 
-/* ---- Sondagem / calado ---- */
-.calado-box{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:10px 8px;border-radius:10px;background:rgba(47,127,179,.12);border:1px solid rgba(47,127,179,.3)}
-.calado-box label{font-size:13px;font-weight:600}
-.calado-box > div{display:flex;align-items:center;gap:5px;color:var(--tinta-fraca);font-size:13px}
-.calado-box input{width:60px;background:var(--casco);border:1px solid var(--painel-borda);
-  color:var(--tinta);border-radius:7px;padding:6px 8px;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
-.calado-box input:focus{outline:none;border-color:var(--agua)}
 .aviso{margin-top:10px;font-size:11px;line-height:1.5;color:var(--tinta-fraca);
   background:rgba(229,72,77,.1);border:1px solid rgba(229,72,77,.3);border-radius:10px;padding:10px}
 .aviso b{color:var(--perigo)}
@@ -267,34 +259,10 @@ body{
 .perfil-item .mini{background:none;border:none;color:var(--tinta-fraca);padding:8px;cursor:pointer}
 .perfil-item .mini svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
-/* ---- Etiqueta de profundidade no mapa ---- */
-.sonda{transform:translate(-50%,-140%);white-space:nowrap;
-  background:var(--agua);color:#06202e;font-weight:700;font-size:12px;
-  padding:4px 9px;border-radius:12px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-.sonda.raso{background:var(--perigo);color:#fff}
-
-/* ---- Mira central de profundidade ---- */
-.centro-prof{position:fixed;inset:0;z-index:420;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;pointer-events:none;gap:6px}
-.centro-prof .cruz{width:26px;height:26px;position:relative}
-.centro-prof .cruz::before,.centro-prof .cruz::after{content:"";position:absolute;background:rgba(255,255,255,.9);
-  box-shadow:0 0 2px rgba(0,0,0,.7)}
-.centro-prof .cruz::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
-.centro-prof .cruz::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
-.cp-chip{background:var(--agua);color:#06202e;font-weight:800;font-size:15px;
-  padding:5px 12px;border-radius:14px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);
-  font-variant-numeric:tabular-nums;min-width:56px;text-align:center}
-.cp-chip.raso{background:var(--perigo);color:#fff}
 </style>
 </head>
 <body>
 <div id="map"></div>
-
-<!-- Mira central com profundidade ao vivo (quando a camada de profundidade está ligada) -->
-<div class="centro-prof" id="centro-prof" hidden>
-  <div class="cruz"></div>
-  <div class="cp-chip" id="cp-chip">—</div>
-</div>
 
 <div class="hud">
   <div class="cartao" id="c-vel">
@@ -355,15 +323,8 @@ body{
   <div class="opcao" data-base="topo"><span class="ponto"></span><div class="txt"><b>Topográfico</b><div class="sub">Relevo e curvas de nível (OpenTopoMap)</div></div></div>
   <h2 style="margin-top:14px">Sobreposições</h2>
   <div class="opcao sel" data-over="seamark"><span class="ponto"></span><div class="txt"><b>Marcas náuticas</b><div class="sub">Boias, faróis, canais, sondagens — OpenSeaMap</div></div></div>
-  <div class="opcao" data-gebco="1"><span class="ponto"></span><div class="txt"><b>Profundidade (GEBCO)</b><div class="sub">Mostra a profundidade na mira do centro da tela e sombreia o fundo</div></div></div>
-
-  <h2 style="margin-top:14px">Sondagem</h2>
-  <div class="calado-box">
-    <label for="in-calado">Calado do seu barco</label>
-    <div><input id="in-calado" type="number" inputmode="decimal" step="0.1" min="0" placeholder="1.5"> m</div>
-  </div>
-  <div class="dica" style="text-align:left">Toque e segure num ponto do mapa para ver a profundidade de referência ali e comparar com o calado.</div>
-  <div class="aviso">⚠️ Profundidade de referência (GEBCO), aproximada e global. <b>Não é carta náutica oficial</b> e não substitui o ecobatímetro. Nunca decida passagem só por aqui — use cartas oficiais (DHN/Marinha) e sonar.</div>
+  <div class="opcao" data-gebco="1"><span class="ponto"></span><div class="txt"><b>Profundidade (GEBCO)</b><div class="sub">Sombreia o fundo: tom mais claro = mais raso (referência global)</div></div></div>
+  <div class="aviso">⚠️ A profundidade GEBCO é só uma referência global aproximada. <b>Não é carta náutica oficial</b>, varia com a maré e não substitui o ecobatímetro. Nunca navegue só por ela — use carta oficial (DHN/Marinha) e sonar.</div>
 </div>
 
 <!-- Folha de waypoints/rota -->
@@ -464,9 +425,7 @@ function toggleOverlay(on){
 }
 function toggleGebco(on){
   gebcoOn = on;
-  const mira=document.getElementById('centro-prof');
-  if(mira) mira.hidden=!on;
-  if(on){ gebco.addTo(map); sondarCentro(); toast('Profundidade no centro da tela (referência)'); }
+  if(on){ gebco.addTo(map); toast('Profundidade GEBCO: tom mais claro = mais raso (referência)'); }
   else { map.removeLayer(gebco); }
   reordenar();
 }
@@ -874,78 +833,6 @@ fCamadas.querySelectorAll('[data-over]').forEach(o=>o.onclick=()=>{
 });
 const opGebco=fCamadas.querySelector('[data-gebco]');
 opGebco.onclick=()=>{ const on=!opGebco.classList.contains('sel'); opGebco.classList.toggle('sel',on); toggleGebco(on); };
-
-/* ---------------- Calado + sondagem por toque longo ---------------- */
-const inCalado=document.getElementById('in-calado');
-let calado=NaN;
-try{ const v=localStorage.getItem('rea.calado'); if(v){ calado=parseFloat(v); inCalado.value=v; } }catch(e){}
-inCalado.onchange=()=>{
-  calado=parseFloat(inCalado.value);
-  try{ localStorage.setItem('rea.calado', inCalado.value||''); }catch(e){}
-};
-
-let sondando=false, marcaSonda=null;
-function mostrarSonda(lat,lng,texto,raso){
-  if(marcaSonda) map.removeLayer(marcaSonda);
-  marcaSonda=L.marker([lat,lng],{
-    icon:L.divIcon({className:'',html:'<div class="sonda '+(raso?'raso':'')+'">'+texto+'</div>',iconSize:[0,0],iconAnchor:[0,0]})
-  }).addTo(map);
-}
-async function sondar(lat,lng){
-  if(sondando) return; sondando=true;
-  toast('Consultando profundidade…');
-  try{
-    const r=await fetch('https://api.opentopodata.org/v1/gebco2020?locations='+lat.toFixed(5)+','+lng.toFixed(5));
-    const j=await r.json();
-    const el=j && j.results && j.results[0] ? j.results[0].elevation : null;
-    if(el==null){ toast('Sem dado de profundidade aqui'); return; }
-    if(el>=0){ mostrarSonda(lat,lng,'terra ~'+el.toFixed(0)+'m',true); toast('~'+el.toFixed(0)+' m ACIMA do nível do mar (terra/seco)'); return; }
-    const prof=-el;
-    let raso=false, extra='';
-    if(!isNaN(calado) && calado>0){
-      const folga=prof-calado;
-      if(folga>0){ extra=' · folga ~'+folga.toFixed(1)+' m'; }
-      else { raso=true; extra=' · ⚠️ RASO p/ calado '+calado+' m'; }
-    }
-    mostrarSonda(lat,lng,'~'+prof.toFixed(0)+' m', raso);
-    toast('Profundidade ~'+prof.toFixed(0)+' m (GEBCO)'+extra);
-  }catch(e){
-    toast('Falha ao consultar (sem internet?)');
-  } finally { sondando=false; }
-}
-map.on('contextmenu', e=>{ sondar(e.latlng.lat, e.latlng.lng); });
-
-/* ---- Profundidade ao vivo no centro da tela ---- */
-const sondaCache=new Map();
-let centroTimer=null, sondandoCentro=false;
-function pintarChip(el){
-  const chip=document.getElementById('cp-chip');
-  if(el==null){ chip.textContent='s/ dado'; chip.className='cp-chip'; return; }
-  if(el>=0){ chip.textContent='terra'; chip.className='cp-chip raso'; return; }
-  const prof=-el;
-  const raso = (!isNaN(calado) && calado>0 && prof<calado);
-  chip.textContent='~'+prof.toFixed(0)+' m';
-  chip.className='cp-chip'+(raso?' raso':'');
-}
-async function sondarCentro(){
-  if(!gebcoOn) return;
-  const c=map.getCenter();
-  const key=c.lat.toFixed(3)+','+c.lng.toFixed(3);
-  const chip=document.getElementById('cp-chip');
-  if(sondaCache.has(key)){ pintarChip(sondaCache.get(key)); return; }
-  if(sondandoCentro) return; sondandoCentro=true;
-  chip.textContent='…'; chip.className='cp-chip';
-  try{
-    const r=await fetch('https://api.opentopodata.org/v1/gebco2020?locations='+c.lat.toFixed(4)+','+c.lng.toFixed(4));
-    const j=await r.json();
-    const el=j && j.results && j.results[0] ? j.results[0].elevation : null;
-    sondaCache.set(key, el);
-    pintarChip(el);
-  }catch(e){ chip.textContent='sem rede'; chip.className='cp-chip'; }
-  finally{ sondandoCentro=false; }
-}
-function agendarCentro(){ if(!gebcoOn) return; clearTimeout(centroTimer); centroTimer=setTimeout(sondarCentro,600); }
-map.on('moveend', agendarCentro);
 
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
