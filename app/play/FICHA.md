@@ -8,7 +8,7 @@ Textos prontos para colar na Google Play Console. Ajuste o que quiser.
 - **Categoria:** Mapas e navegação
 - **Tipo:** App gratuito, sem compras no app, sem anúncios
 - **Idioma padrão:** Português (Brasil)
-- **E-mail de contato:** (coloque o seu — fica visível na loja)
+- **E-mail de contato:** thiagoferrantehfq@gmail.com
 - **Site (opcional):** link do GitHub Pages, se publicar
 - **Política de privacidade (URL):** `https://batatao1528-art.github.io/rea/privacidade.html`
   (funciona depois de ativar o GitHub Pages; ou hospede o `app/privacidade.html` onde preferir)
