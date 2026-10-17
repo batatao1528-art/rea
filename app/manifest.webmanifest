@@ -1,0 +1,20 @@
+{
+  "name": "Carta Náutica Livre",
+  "short_name": "Carta Livre",
+  "description": "Navegação náutica com cartas livres (OpenSeaMap), GPS, rotas e waypoints. Sem mensalidade e sem login.",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a1824",
+  "theme_color": "#0a1824",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0a1824">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Carta Náutica Livre</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+  integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+  crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* Layout: mapa em tela cheia, painel de dados flutuante no topo, barra de ações embaixo.
+   Paleta náutica: fundo casco escuro, acento laranja-boia (segurança/visibilidade). */
+:root{
+  --casco:#0a1824;        /* fundo escuro (noite no mar) */
+  --painel:rgba(12,27,41,.92);
+  --painel-borda:rgba(120,170,210,.22);
+  --tinta:#eaf2f8;         /* texto principal */
+  --tinta-fraca:#9fb6c8;   /* texto secundário */
+  --boia:#ff7a1a;          /* acento: laranja boia/salva-vidas */
+  --boia-fraca:#c85e12;
+  --agua:#2f7fb3;          /* azul rota */
+  --perigo:#e5484d;
+  --ok:#36c08a;
+  --sombra:0 6px 24px rgba(0,0,0,.45);
+  --r:14px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--casco);
+  color:var(--tinta);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+#map{position:fixed;inset:0;background:#0a1824;z-index:0}
+
+/* ---- Painel de telemetria (topo) ---- */
+.hud{
+  position:fixed;
+  top:env(safe-area-inset-top,0px);left:0;right:0;
+  z-index:500;
+  display:flex;gap:8px;
+  padding:calc(8px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-left,0px)) 8px max(12px,env(safe-area-inset-right,0px));
+  pointer-events:none;
+}
+.hud .cartao{
+  pointer-events:auto;
+  flex:1;min-width:0;
+  background:var(--painel);
+  border:1px solid var(--painel-borda);
+  border-radius:var(--r);
+  padding:8px 10px;
+  backdrop-filter:blur(10px);
+  box-shadow:var(--sombra);
+  text-align:center;
+}
+.hud .rotulo{
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--tinta-fraca);
+}
+.hud .valor{
+  font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;
+  line-height:1.1;margin-top:2px;
+}
+.hud .uni{font-size:11px;color:var(--tinta-fraca);font-weight:500}
+
+/* marca "exemplo" quando sem sinal de GPS real */
+.simulado .valor{color:var(--tinta-fraca)}
+
+/* ---- Marca d'água / selo ---- */
+.selo{
+  position:fixed;z-index:400;
+  bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  left:max(12px,env(safe-area-inset-left,0px));
+  background:var(--painel);border:1px solid var(--painel-borda);
+  border-radius:10px;padding:5px 9px;font-size:11px;color:var(--tinta-fraca);
+  box-shadow:var(--sombra);max-width:62vw;
+}
+.selo b{color:var(--boia)}
+
+/* ---- Barra de ações (base) ---- */
+.doca{
+  position:fixed;left:0;right:0;
+  bottom:0;
+  z-index:500;
+  display:flex;gap:8px;justify-content:space-between;
+  padding:10px max(12px,env(safe-area-inset-left,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-right,0px));
+  background:linear-gradient(to top,rgba(10,24,36,.96),rgba(10,24,36,0));
+}
+.btn{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:var(--painel);
+  border:1px solid var(--painel-borda);
+  color:var(--tinta);
+  border-radius:var(--r);
+  padding:9px 4px;font-size:11px;font-weight:600;
+  cursor:pointer;user-select:none;
+  box-shadow:var(--sombra);
+  transition:transform .06s ease,border-color .15s ease,background .15s ease;
+}
+.btn:active{transform:scale(.94)}
+.btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.btn.ativo{border-color:var(--boia);color:var(--boia)}
+.btn.primario{background:var(--boia);border-color:var(--boia);color:#201003}
+.btn.primario svg{stroke:#201003}
+
+/* ---- Folha deslizante (waypoints / camadas) ---- */
+.folha{
+  position:fixed;left:0;right:0;bottom:0;z-index:700;
+  background:var(--casco);
+  border-top-left-radius:20px;border-top-right-radius:20px;
+  border-top:1px solid var(--painel-borda);
+  box-shadow:0 -10px 30px rgba(0,0,0,.5);
+  padding:10px max(14px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-right,0px));
+  transform:translateY(110%);
+  transition:transform .28s cubic-bezier(.22,1,.36,1);
+  max-height:70vh;overflow:auto;
+}
+.folha.aberta{transform:translateY(0)}
+.puxador{width:40px;height:4px;border-radius:2px;background:var(--painel-borda);margin:2px auto 12px}
+.folha h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+.folha h2 .conta{font-size:12px;color:var(--tinta-fraca);font-weight:500;margin-left:auto}
+
+.opcao{display:flex;align-items:center;gap:12px;padding:12px 8px;border-radius:10px;cursor:pointer}
+.opcao:active{background:rgba(255,255,255,.04)}
+.opcao .ponto{width:12px;height:12px;border-radius:50%;flex:none;border:2px solid var(--painel-borda)}
+.opcao.sel .ponto{background:var(--boia);border-color:var(--boia)}
+.opcao .txt{flex:1;min-width:0}
+.opcao .sub{font-size:11px;color:var(--tinta-fraca)}
+
+.wp{display:flex;align-items:center;gap:12px;padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+.wp .num{width:26px;height:26px;border-radius:50%;background:var(--boia);color:#201003;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.wp .info{flex:1;min-width:0}
+.wp .info b{font-weight:600}
+.wp .info .coord{font-size:11px;color:var(--tinta-fraca);font-variant-numeric:tabular-nums}
+.wp .lixo{background:none;border:none;color:var(--tinta-fraca);padding:6px;cursor:pointer}
+.wp .lixo svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9}
+.vazio{text-align:center;color:var(--tinta-fraca);padding:26px 10px;font-size:13px}
+.vazio svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:1.5;opacity:.5;margin-bottom:8px}
+
+.resumo-rota{
+  display:flex;gap:10px;margin-top:10px;padding:12px;border-radius:12px;
+  background:rgba(47,127,179,.14);border:1px solid rgba(47,127,179,.3);
+}
+.resumo-rota div{flex:1;text-align:center}
+.resumo-rota .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.resumo-rota .l{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--tinta-fraca)}
+
+.limpar{width:100%;margin-top:12px;background:none;border:1px solid rgba(229,72,77,.5);
+  color:var(--perigo);border-radius:10px;padding:11px;font-weight:600;cursor:pointer}
+
+/* ---- Véu atrás da folha ---- */
+.veu{position:fixed;inset:0;z-index:650;background:rgba(0,0,0,.4);opacity:0;
+  pointer-events:none;transition:opacity .25s}
+.veu.on{opacity:1;pointer-events:auto}
+
+/* ---- Toast ---- */
+.toast{position:fixed;z-index:800;left:50%;transform:translateX(-50%);
+  bottom:calc(88px + env(safe-area-inset-bottom,0px));
+  background:var(--casco);border:1px solid var(--boia);color:var(--tinta);
+  padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;
+  box-shadow:var(--sombra);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+/* marcador do barco */
+.barco{filter:drop-shadow(0 0 4px rgba(255,122,26,.7))}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(10,24,36,.7)!important;color:var(--tinta-fraca)!important}
+.leaflet-control-attribution a{color:var(--agua)!important}
+.leaflet-bar a{background:var(--painel)!important;color:var(--tinta)!important;border-color:var(--painel-borda)!important}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="hud">
+  <div class="cartao" id="c-vel">
+    <div class="rotulo">Velocidade</div>
+    <div class="valor" id="v-vel">—</div>
+    <div class="uni">nós (SOG)</div>
+  </div>
+  <div class="cartao" id="c-rumo">
+    <div class="rotulo">Rumo</div>
+    <div class="valor" id="v-rumo">—</div>
+    <div class="uni">° (COG)</div>
+  </div>
+  <div class="cartao" id="c-prof">
+    <div class="rotulo">Próx. ponto</div>
+    <div class="valor" id="v-dist">—</div>
+    <div class="uni" id="v-dist-uni">milhas náut.</div>
+  </div>
+</div>
+
+<div class="selo">Carta <b>livre</b> · OpenSeaMap · sem mensalidade</div>
+
+<div class="doca">
+  <button class="btn" id="b-camadas">
+    <svg viewBox="0 0 24 24"><polygon points="12 3 21 8 12 13 3 8 12 3"/><polyline points="3 12 12 17 21 12"/><polyline points="3 16 12 21 21 16"/></svg>
+    Camadas
+  </button>
+  <button class="btn" id="b-gps">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+    Meu barco
+  </button>
+  <button class="btn primario" id="b-marcar">
+    <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+    Marcar
+  </button>
+  <button class="btn" id="b-rota">
+    <svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M8 16.5c4-1 8-5 8.5-9"/></svg>
+    Rota
+  </button>
+</div>
+
+<!-- Folha de camadas -->
+<div class="veu" id="veu"></div>
+<div class="folha" id="folha-camadas">
+  <div class="puxador"></div>
+  <h2>Camadas do mapa</h2>
+  <div class="opcao sel" data-base="osm"><span class="ponto"></span><div class="txt"><b>Mapa padrão</b><div class="sub">OpenStreetMap — costa, cidades, estradas</div></div></div>
+  <div class="opcao" data-base="sat"><span class="ponto"></span><div class="txt"><b>Satélite</b><div class="sub">Imagem aérea (Esri World Imagery)</div></div></div>
+  <div class="opcao" data-base="topo"><span class="ponto"></span><div class="txt"><b>Topográfico</b><div class="sub">Relevo e curvas de nível (OpenTopoMap)</div></div></div>
+  <h2 style="margin-top:14px">Sobreposições</h2>
+  <div class="opcao sel" data-over="seamark"><span class="ponto"></span><div class="txt"><b>Marcas náuticas</b><div class="sub">Boias, faróis, canais, profundidades — OpenSeaMap</div></div></div>
+</div>
+
+<!-- Folha de waypoints/rota -->
+<div class="folha" id="folha-rota">
+  <div class="puxador"></div>
+  <h2>Rota <span class="conta" id="conta-wp">0 pontos</span></h2>
+  <div id="lista-wp"></div>
+  <div class="resumo-rota" id="resumo-rota" hidden>
+    <div><div class="v" id="r-dist">0.0</div><div class="l">MN total</div></div>
+    <div><div class="v" id="r-pernas">0</div><div class="l">pernas</div></div>
+    <div><div class="v" id="r-rumo">—</div><div class="l">próx. rumo</div></div>
+  </div>
+  <button class="limpar" id="b-limpar">Apagar toda a rota</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+  integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfg=="
+  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+"use strict";
+
+/* ---------------- Mapa e camadas ---------------- */
+const bases = {
+  osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:19, attribution:'© OpenStreetMap'
+  }),
+  sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom:19, attribution:'Imagem © Esri'
+  }),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom:17, attribution:'© OpenTopoMap (CC-BY-SA)'
+  })
+};
+const seamark = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+  maxZoom:18, attribution:'Náutico © OpenSeaMap'
+});
+
+const map = L.map('map',{ zoomControl:false, attributionControl:true })
+  .setView([-23.976, -46.308], 12); // Baía de Santos como ponto de partida
+L.control.zoom({position:'topright'}).addTo(map);
+
+let baseAtual = bases.osm.addTo(map);
+let seamarkOn = true; seamark.addTo(map);
+
+function trocarBase(id){
+  if(baseAtual){ map.removeLayer(baseAtual); }
+  baseAtual = bases[id].addTo(map);
+  if(seamarkOn){ seamark.bringToFront(); }
+}
+function toggleOverlay(on){
+  seamarkOn = on;
+  if(on){ seamark.addTo(map); seamark.bringToFront(); }
+  else { map.removeLayer(seamark); }
+}
+
+/* ---------------- Utilidades ---------------- */
+const MS_PARA_NOS = 1.943844;
+const M_PARA_MN = 1/1852;
+function haversineM(a,b){
+  const R=6371000, rad=Math.PI/180;
+  const dLat=(b.lat-a.lat)*rad, dLon=(b.lng-a.lng)*rad;
+  const la1=a.lat*rad, la2=b.lat*rad;
+  const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function rumoEntre(a,b){
+  const rad=Math.PI/180, deg=180/Math.PI;
+  const dLon=(b.lng-a.lng)*rad;
+  const y=Math.sin(dLon)*Math.cos(b.lat*rad);
+  const x=Math.cos(a.lat*rad)*Math.sin(b.lat*rad)-Math.sin(a.lat*rad)*Math.cos(b.lat*rad)*Math.cos(dLon);
+  return (Math.atan2(y,x)*deg+360)%360;
+}
+function fmtCoord(ll){
+  const la=Math.abs(ll.lat).toFixed(4)+(ll.lat>=0?'N':'S');
+  const lo=Math.abs(ll.lng).toFixed(4)+(ll.lng>=0?'E':'W');
+  return la+'  '+lo;
+}
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1900);
+}
+
+/* ---------------- Waypoints / rota ---------------- */
+let waypoints = carregar();
+let marcadores = [];
+let linhaRota = null;
+
+function carregar(){
+  try{ return JSON.parse(localStorage.getItem('rea.wp')||'[]'); }
+  catch(e){ return []; }
+}
+function salvar(){
+  try{ localStorage.setItem('rea.wp', JSON.stringify(waypoints)); }catch(e){}
+}
+
+function iconeWp(n){
+  return L.divIcon({
+    className:'', html:'<div class="wp-pin">'+n+'</div>',
+    iconSize:[28,28], iconAnchor:[14,14]
+  });
+}
+// estilo do pino injetado
+const estiloPino=document.createElement('style');
+estiloPino.textContent='.wp-pin{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--boia);color:#201003;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);border:2px solid #fff}.wp-pin span{transform:rotate(45deg)}';
+document.head.appendChild(estiloPino);
+
+function redesenhar(){
+  marcadores.forEach(m=>map.removeLayer(m));
+  marcadores=[];
+  if(linhaRota){ map.removeLayer(linhaRota); linhaRota=null; }
+
+  waypoints.forEach((w,i)=>{
+    const m=L.marker([w.lat,w.lng],{
+      icon:L.divIcon({className:'',html:'<div class="wp-pin"><span>'+(i+1)+'</span></div>',iconSize:[28,28],iconAnchor:[14,28]}),
+      draggable:true
+    }).addTo(map);
+    m.on('dragend',e=>{ const p=e.target.getLatLng(); w.lat=p.lat; w.lng=p.lng; salvar(); redesenhar(); atualizarPainel(); });
+    m.on('click',()=>toast('Ponto '+(i+1)+' · '+fmtCoord(w)));
+    marcadores.push(m);
+  });
+
+  if(waypoints.length>=2){
+    linhaRota=L.polyline(waypoints.map(w=>[w.lat,w.lng]),{
+      color:'#2f7fb3',weight:4,opacity:.85,dashArray:'1 10',lineCap:'round'
+    }).addTo(map);
+  }
+  renderLista();
+}
+
+function distanciaTotalMN(){
+  let d=0;
+  for(let i=1;i<waypoints.length;i++) d+=haversineM(waypoints[i-1],waypoints[i]);
+  return d*M_PARA_MN;
+}
+
+function renderLista(){
+  const lista=document.getElementById('lista-wp');
+  document.getElementById('conta-wp').textContent=waypoints.length+(waypoints.length===1?' ponto':' pontos');
+  const resumo=document.getElementById('resumo-rota');
+  if(waypoints.length===0){
+    lista.innerHTML='<div class="vazio"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/></svg><br>Toque em <b>Marcar</b> e depois no mapa para criar pontos da rota.</div>';
+    resumo.hidden=true;
+    return;
+  }
+  lista.innerHTML=waypoints.map((w,i)=>`
+    <div class="wp">
+      <div class="num">${i+1}</div>
+      <div class="info"><b>Ponto ${i+1}</b><div class="coord">${fmtCoord(w)}</div></div>
+      <button class="lixo" data-i="${i}" aria-label="Apagar ponto ${i+1}"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+    </div>`).join('');
+  lista.querySelectorAll('.lixo').forEach(b=>b.onclick=()=>{
+    waypoints.splice(+b.dataset.i,1); salvar(); redesenhar(); atualizarPainel();
+  });
+  if(waypoints.length>=2){
+    resumo.hidden=false;
+    document.getElementById('r-dist').textContent=distanciaTotalMN().toFixed(1);
+    document.getElementById('r-pernas').textContent=waypoints.length-1;
+    document.getElementById('r-rumo').textContent=Math.round(rumoEntre(waypoints[0],waypoints[1]))+'°';
+  } else resumo.hidden=true;
+}
+
+/* ---------------- Modo marcar ---------------- */
+let modoMarcar=false;
+function setMarcar(on){
+  modoMarcar=on;
+  document.getElementById('b-marcar').classList.toggle('ativo',on);
+  map.getContainer().style.cursor=on?'crosshair':'';
+  toast(on?'Toque no mapa para marcar pontos':'Modo marcar desligado');
+}
+map.on('click',e=>{
+  if(!modoMarcar) return;
+  waypoints.push({lat:e.latlng.lat,lng:e.latlng.lng});
+  salvar(); redesenhar(); atualizarPainel();
+});
+
+/* ---------------- GPS ao vivo ---------------- */
+let barco=null, precisao=null, seguindo=false, posAtual=null, watchId=null;
+const svgBarco='<svg width="30" height="30" viewBox="0 0 30 30" class="barco"><path d="M15 2 L22 24 L15 19 L8 24 Z" fill="#ff7a1a" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+
+function atualizarPainel(){
+  const vVel=document.getElementById('v-vel');
+  const vRumo=document.getElementById('v-rumo');
+  const vDist=document.getElementById('v-dist');
+  if(posAtual){
+    document.getElementById('c-vel').classList.remove('simulado');
+    document.getElementById('c-rumo').classList.remove('simulado');
+    vVel.textContent = posAtual.speed!=null && posAtual.speed>=0 ? (posAtual.speed*MS_PARA_NOS).toFixed(1) : '0.0';
+    vRumo.textContent = posAtual.heading!=null && !isNaN(posAtual.heading) ? Math.round(posAtual.heading) : '—';
+  }
+  // distância até o próximo waypoint
+  const cDist=document.getElementById('c-prof');
+  if(posAtual && waypoints.length){
+    const d=haversineM({lat:posAtual.lat,lng:posAtual.lng},waypoints[0])*M_PARA_MN;
+    vDist.textContent=d.toFixed(2);
+    cDist.classList.remove('simulado');
+  } else if(waypoints.length>=2){
+    vDist.textContent=distanciaTotalMN().toFixed(1);
+    document.getElementById('v-dist-uni').textContent='MN rota total';
+  } else {
+    vDist.textContent='—';
+  }
+}
+
+function onPos(p){
+  const c=p.coords;
+  posAtual={lat:c.latitude,lng:c.longitude,speed:c.speed,heading:c.heading,acc:c.accuracy};
+  const ll=[c.latitude,c.longitude];
+  if(!barco){
+    barco=L.marker(ll,{icon:L.divIcon({className:'',html:svgBarco,iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:1000}).addTo(map);
+    precisao=L.circle(ll,{radius:c.accuracy,color:'#ff7a1a',weight:1,fillColor:'#ff7a1a',fillOpacity:.1}).addTo(map);
+  } else {
+    barco.setLatLng(ll); precisao.setLatLng(ll).setRadius(c.accuracy);
+  }
+  if(c.heading!=null && !isNaN(c.heading)){
+    const el=barco.getElement(); if(el) el.querySelector('svg').style.transform='rotate('+c.heading+'deg)';
+  }
+  if(seguindo) map.setView(ll, Math.max(map.getZoom(),14),{animate:true});
+  atualizarPainel();
+}
+function onErr(e){
+  toast('GPS indisponível: '+(e.message||'permissão negada'));
+  document.getElementById('b-gps').classList.remove('ativo');
+  seguindo=false;
+}
+document.getElementById('b-gps').onclick=()=>{
+  if(!('geolocation' in navigator)){ toast('Este aparelho não expõe GPS ao navegador'); return; }
+  seguindo=!seguindo;
+  document.getElementById('b-gps').classList.toggle('ativo',seguindo);
+  if(watchId==null){
+    watchId=navigator.geolocation.watchPosition(onPos,onErr,{enableHighAccuracy:true,maximumAge:1000,timeout:12000});
+    toast('Buscando sinal de GPS…');
+  } else if(seguindo && posAtual){
+    map.setView([posAtual.lat,posAtual.lng],15);
+  }
+};
+
+/* ---------------- Folhas deslizantes ---------------- */
+const veu=document.getElementById('veu');
+const fCamadas=document.getElementById('folha-camadas');
+const fRota=document.getElementById('folha-rota');
+function abrir(f){ f.classList.add('aberta'); veu.classList.add('on'); }
+function fecharTudo(){ fCamadas.classList.remove('aberta'); fRota.classList.remove('aberta'); veu.classList.remove('on'); }
+veu.onclick=fecharTudo;
+
+document.getElementById('b-camadas').onclick=()=>abrir(fCamadas);
+document.getElementById('b-rota').onclick=()=>{ renderLista(); abrir(fRota); };
+document.getElementById('b-marcar').onclick=()=>setMarcar(!modoMarcar);
+document.getElementById('b-limpar').onclick=()=>{
+  if(waypoints.length===0){ toast('A rota já está vazia'); return; }
+  waypoints=[]; salvar(); redesenhar(); atualizarPainel(); toast('Rota apagada');
+};
+
+// seletor de camadas
+fCamadas.querySelectorAll('[data-base]').forEach(o=>o.onclick=()=>{
+  fCamadas.querySelectorAll('[data-base]').forEach(x=>x.classList.remove('sel'));
+  o.classList.add('sel'); trocarBase(o.dataset.base);
+});
+fCamadas.querySelectorAll('[data-over]').forEach(o=>o.onclick=()=>{
+  const on=!o.classList.contains('sel'); o.classList.toggle('sel',on); toggleOverlay(on);
+});
+
+/* ---------------- Service worker (instalável + cache de tiles) ---------------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+/* ---------------- Início ---------------- */
+redesenhar();
+atualizarPainel();
+if(waypoints.length) toast(waypoints.length+' ponto(s) de rota carregado(s)');
+</script>
+</body>
+</html>
