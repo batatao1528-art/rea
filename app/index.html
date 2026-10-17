@@ -28,6 +28,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{
   background:var(--casco);
@@ -278,11 +279,11 @@ body{
   border-radius:7px;padding:6px 8px;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
 .tool-row input:focus{outline:none;border-color:var(--agua)}
 .tool-btns{display:flex;gap:8px}
-.tbtn{flex:1;background:var(--boia);border:none;color:#201003;border-radius:10px;padding:11px;
-  font-weight:700;font-size:13px;cursor:pointer}
+.tbtn{flex:1;background:var(--painel);border:1px solid var(--painel-borda);color:var(--tinta);
+  border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer}
 .tbtn:active{transform:scale(.97)}
-.tbtn.sec{background:none;border:1px solid var(--painel-borda);color:var(--tinta)}
-.tbtn.ativo{background:var(--boia);color:#201003}
+.tbtn.sec{background:none}
+.tbtn.ativo{background:var(--boia);color:#201003;border-color:var(--boia)}
 
 /* ---- Banner do alarme de fundeio ---- */
 .alarme-fundeio{position:fixed;z-index:900;left:max(12px,env(safe-area-inset-left,0px));
@@ -990,6 +991,7 @@ function atualizarFundeioStat(){
   const el=document.getElementById('fundeio-stat'); if(!el) return;
   if(fundeio){ el.textContent='ativo · '+fundeio.raio+' m'; el.className='tool-info on'; }
   else { el.textContent='desligado'; el.className='tool-info'; }
+  const bf=document.getElementById('b-fundear'); if(bf) bf.classList.toggle('ativo', !!fundeio);
 }
 let foraCont=0;
 function fundearAqui(){
