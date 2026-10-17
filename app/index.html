@@ -225,6 +225,22 @@ body{
 .aviso{margin-top:10px;font-size:11px;line-height:1.5;color:var(--tinta-fraca);
   background:rgba(229,72,77,.1);border:1px solid rgba(229,72,77,.3);border-radius:10px;padding:10px}
 .aviso b{color:var(--perigo)}
+
+/* ---- Aviso de abertura ---- */
+.aviso-inicio{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:max(20px,env(safe-area-inset-left,0px));
+  background:rgba(4,12,20,.78);backdrop-filter:blur(4px)}
+.aviso-inicio.oculto{display:none}
+.aviso-card{max-width:360px;width:100%;background:var(--casco);border:1px solid var(--painel-borda);
+  border-radius:18px;padding:22px 20px calc(18px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 18px 50px rgba(0,0,0,.6);text-align:center}
+.aviso-icone{font-size:34px;line-height:1}
+.aviso-card h2{margin:10px 0 12px;font-size:19px}
+.aviso-card p{margin:0 0 12px;font-size:13.5px;line-height:1.55;color:var(--tinta-fraca);text-align:left}
+.aviso-card p b{color:var(--tinta)}
+.aviso-card #b-aviso-ok{margin-top:6px;width:100%;background:var(--boia);border:none;color:#201003;
+  border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer}
+.aviso-card #b-aviso-ok:active{transform:scale(.97)}
 </style>
 </head>
 <body>
@@ -321,6 +337,17 @@ body{
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Aviso de abertura (aparece toda vez) -->
+<div class="aviso-inicio" id="aviso-inicio">
+  <div class="aviso-card">
+    <div class="aviso-icone">⚓</div>
+    <h2>Antes de navegar</h2>
+    <p>As profundidades mostradas no <b>NavegaDor</b> são apenas uma <b>referência aproximada</b>. O valor real do fundo <b>muda com a maré</b>, com assoreamento e com obstáculos que podem não estar no mapa.</p>
+    <p>Nunca decida a passagem do seu barco só por aqui. Use sempre a <b>carta náutica oficial (DHN/Marinha)</b>, o <b>ecobatímetro</b> e o bom senso do mar.</p>
+    <button id="b-aviso-ok">Entendi, navegar</button>
+  </div>
+</div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script>
@@ -734,6 +761,9 @@ if('serviceWorker' in navigator){
 }
 
 /* ---------------- Início ---------------- */
+document.getElementById('b-aviso-ok').onclick=()=>{
+  document.getElementById('aviso-inicio').classList.add('oculto');
+};
 redesenhar();
 redesenharPesca();
 atualizarPainel();
