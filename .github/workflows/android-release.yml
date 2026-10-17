@@ -51,7 +51,12 @@ jobs:
         run: npx cap sync android
 
       - name: Decodificar keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/navegador.jks"
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '[:space:]' | base64 -d > "${{ runner.temp }}/navegador.jks"
+          if [ ! -s "${{ runner.temp }}/navegador.jks" ]; then
+            echo "::error::KEYSTORE_BASE64 inválido. Cole apenas o conteúdo do arquivo KEYSTORE_BASE64_LIMPO.txt (sem cabeçalho nem linhas extras)."
+            exit 1
+          fi
 
       - name: Construir AAB assinado
         working-directory: android
