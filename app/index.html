@@ -294,6 +294,12 @@ body{
 .clima-card .cl-sub{font-size:11px;color:var(--tinta-fraca);margin-top:2px}
 .clima-card.largo{grid-column:1 / -1}
 .cl-seta{display:inline-block;margin-left:4px}
+.vento-icon{overflow:visible}
+.vento-wrap{position:relative;width:34px;height:80px}
+.vento-rot{width:34px;height:80px;transform-origin:17px 40px;filter:drop-shadow(0 0 3px rgba(0,0,0,.6))}
+.vento-lbl{position:absolute;left:50%;top:82px;transform:translateX(-50%);
+  background:#06202e;color:#28c3e0;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;
+  border:1px solid #28c3e0;white-space:nowrap}
 
 /* ---- Banner do alarme de fundeio ---- */
 .alarme-fundeio{position:fixed;z-index:900;left:max(12px,env(safe-area-inset-left,0px));
@@ -423,7 +429,10 @@ body{
     <div class="tool-cab"><b>🌬️ Vento, ondas e maré</b><span id="clima-stat" class="tool-info">—</span></div>
     <div class="dica" style="text-align:left;margin:0 0 8px">Previsão da sua posição (Open-Meteo). Precisa de internet.</div>
     <div id="clima-painel" class="clima-painel" hidden></div>
-    <button class="tbtn" id="b-clima" style="width:100%">Ver vento e maré aqui</button>
+    <div class="tool-btns">
+      <button class="tbtn" id="b-clima">Ver vento e maré aqui</button>
+      <button class="tbtn sec" id="b-vento-seta">Seta do vento</button>
+    </div>
   </div>
 
   <div class="tool-sec">
@@ -887,6 +896,7 @@ function onPos(p){
   } else if(vetor){ map.removeLayer(vetor); vetor=null; }
   if(gravando) adicionarTrilha(c.latitude,c.longitude);
   if(fundeio) checarFundeio(c.latitude,c.longitude);
+  if(ventoMarker) ventoMarker.setLatLng(ll);
   if(seguindo) map.setView(ll, Math.max(map.getZoom(),14),{animate:true});
   atualizarPainel();
 }
@@ -1193,6 +1203,7 @@ async function verClima(){
     if(cw){
       html+='<div class="clima-card"><div class="cl-rot">Vento</div><div class="cl-val">'+Math.round(cw.wind_speed_10m)+' <span style="font-size:12px">nós</span></div><div class="cl-sub">de '+Math.round(cw.wind_direction_10m)+'° '+dirCardinal(cw.wind_direction_10m)+'</div></div>';
       html+='<div class="clima-card"><div class="cl-rot">Rajada</div><div class="cl-val">'+Math.round(cw.wind_gusts_10m)+' <span style="font-size:12px">nós</span></div></div>';
+      ventoInfo={dir:cw.wind_direction_10m, spd:cw.wind_speed_10m}; desenharVento();
     }
     const cm=m&&m.current;
     if(cm && cm.wave_height!=null){
@@ -1211,6 +1222,39 @@ async function verClima(){
   finally{ buscandoClima=false; }
 }
 document.getElementById('b-clima').onclick=verClima;
+
+/* ---- Seta do vento no mapa ---- */
+let ventoInfo=null, ventoMarker=null, ventoOn=true;
+try{ ventoOn = localStorage.getItem('rea.ventoSeta')!=='0'; }catch(e){}
+function svgVento(){
+  // seta aponta pra cima (norte); cauda = de onde vem, ponta = pra onde vai
+  return '<svg viewBox="0 0 34 80" width="34" height="80">'
+    +'<line x1="17" y1="70" x2="17" y2="16" stroke="#28c3e0" stroke-width="4" stroke-linecap="round"/>'
+    +'<polygon points="17,4 8,22 26,22" fill="#28c3e0" stroke="#06202e" stroke-width="1.2"/>'
+    +'<circle cx="17" cy="71" r="4" fill="none" stroke="#28c3e0" stroke-width="3"/>'
+    +'</svg>';
+}
+function posVento(){ return posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter(); }
+function desenharVento(){
+  if(ventoMarker){ map.removeLayer(ventoMarker); ventoMarker=null; }
+  if(!ventoOn || !ventoInfo) return;
+  const indo=(ventoInfo.dir+180)%360; // de onde vem + 180 = pra onde sopra
+  const p=posVento();
+  const html='<div class="vento-wrap"><div class="vento-rot" style="transform:rotate('+indo+'deg)">'+svgVento()+'</div><div class="vento-lbl">'+Math.round(ventoInfo.spd)+' kn</div></div>';
+  ventoMarker=L.marker([p.lat,p.lng],{
+    icon:L.divIcon({className:'vento-icon', html:html, iconSize:[34,92], iconAnchor:[17,40]}),
+    interactive:false, zIndexOffset:500
+  }).addTo(map);
+}
+function toggleVentoSeta(){
+  ventoOn=!ventoOn;
+  try{ localStorage.setItem('rea.ventoSeta', ventoOn?'1':'0'); }catch(e){}
+  document.getElementById('b-vento-seta').classList.toggle('ativo',ventoOn);
+  desenharVento();
+  toast(ventoOn ? (ventoInfo?'Seta do vento ligada':'Seta ligada — toque em “Ver vento” para buscar') : 'Seta do vento desligada');
+}
+document.getElementById('b-vento-seta').onclick=toggleVentoSeta;
+document.getElementById('b-vento-seta').classList.toggle('ativo',ventoOn);
 
 /* botão Mais */
 document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
