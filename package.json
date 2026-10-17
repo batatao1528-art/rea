@@ -1,0 +1,16 @@
+{
+  "name": "navegador",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NavegaDor - app de navegacao nautica com cartas livres",
+  "scripts": {
+    "sync": "cap sync android",
+    "open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/geolocation": "^6.1.0"
+  }
+}

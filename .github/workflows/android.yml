@@ -1,0 +1,51 @@
+name: Build APK NavegaDor (Android)
+
+# Gera o APK de teste do NavegaDor a cada push nesta branch.
+# Baixe o APK em: Actions > (este job) > Artifacts > navegador-apk
+on:
+  push:
+    branches:
+      - ccr-3f8cc969-a09oo5
+      - main
+    paths:
+      - 'app/**'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências (Capacitor)
+        run: npm install
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Sincronizar web -> Android
+        run: npx cap sync android
+
+      - name: Construir APK de debug
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Publicar APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: navegador-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
