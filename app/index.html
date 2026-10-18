@@ -436,6 +436,12 @@ body{
   </div>
 
   <div class="tool-sec">
+    <div class="tool-cab"><b>🚢 Tráfego de navios (AIS)</b></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Abre o MarineTraffic no navegador, já centralizado na sua posição, para ver embarcações próximas. Precisa de internet.</div>
+    <button class="tbtn" id="b-ais" style="width:100%">Ver navios perto (MarineTraffic)</button>
+  </div>
+
+  <div class="tool-sec">
     <div class="tool-cab"><b>🧭 Trilha (track)</b><span id="trilha-stat" class="tool-info">parada</span></div>
     <div class="dica" style="text-align:left;margin:0 0 8px">Grava o caminho percorrido, pra voltar pelo mesmo trajeto. Precisa do GPS (Barco) ligado.</div>
     <div class="tool-btns">
@@ -1228,6 +1234,18 @@ async function verClima(){
   finally{ buscandoClima=false; }
 }
 document.getElementById('b-clima').onclick=verClima;
+
+/* ---- Tráfego de navios (abre o MarineTraffic no navegador) ---- */
+function abrirAIS(){
+  const c = posAtual ? {lat:posAtual.lat,lng:posAtual.lng} : map.getCenter();
+  const z = Math.min(Math.max(Math.round(map.getZoom()),7),14);
+  const url='https://www.marinetraffic.com/en/ais/home/centerx:'+c.lng.toFixed(3)+'/centery:'+c.lat.toFixed(3)+'/zoom:'+z;
+  try{
+    const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener noreferrer';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(e){ try{ window.open(url,'_blank'); }catch(_){ toast('Abra no navegador: marinetraffic.com'); } }
+}
+document.getElementById('b-ais').onclick=abrirAIS;
 
 /* ---- Seta do vento no mapa ---- */
 let ventoInfo=null, ventoMarker=null, ventoOn=true;
