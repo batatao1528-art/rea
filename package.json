@@ -8,6 +8,7 @@
     "open:android": "cap open android"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "^5.0.1",
     "@capacitor/android": "^6.2.1",
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",

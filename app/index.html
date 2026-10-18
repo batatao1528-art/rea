@@ -468,6 +468,12 @@ body{
     <div class="dica" style="text-align:left;margin:0 0 8px">Envia sua localização atual (link de mapa) pelo WhatsApp ou outro app.</div>
     <button class="tbtn" id="b-compartilhar" style="width:100%">Enviar minha localização</button>
   </div>
+
+  <div class="tool-sec">
+    <div class="tool-cab"><b>🔆 Manter tela ligada</b><span id="tela-stat" class="tool-info">ligado</span></div>
+    <div class="dica" style="text-align:left;margin:0 0 8px">Impede a tela de apagar enquanto o app está aberto, pra o GPS não parar de calcular a posição. Gasta mais bateria — mantenha o carregador por perto em viagens longas.</div>
+    <button class="tbtn" id="b-tela" style="width:100%">Tela sempre ligada</button>
+  </div>
 </div>
 <input type="file" id="file-gpx" accept=".gpx,application/gpx+xml,application/xml,text/xml" hidden>
 
@@ -1256,6 +1262,33 @@ function toggleVentoSeta(){
 document.getElementById('b-vento-seta').onclick=toggleVentoSeta;
 document.getElementById('b-vento-seta').classList.toggle('ativo',ventoOn);
 
+/* ================= Manter tela ligada ================= */
+let telaLigada=true, wakeLockObj=null;
+try{ telaLigada = localStorage.getItem('rea.telaLigada')!=='0'; }catch(e){}
+async function aplicarTela(){
+  const KA=capPlugin('KeepAwake');
+  try{
+    if(telaLigada){
+      if(KA){ await KA.keepAwake(); }
+      else if('wakeLock' in navigator){ try{ wakeLockObj = await navigator.wakeLock.request('screen'); }catch(e){ wakeLockObj=null; } }
+    } else {
+      if(KA){ await KA.allowSleep(); }
+      else if(wakeLockObj){ try{ await wakeLockObj.release(); }catch(e){} wakeLockObj=null; }
+    }
+  }catch(e){}
+  const el=document.getElementById('tela-stat'); if(el){ el.textContent=telaLigada?'ligado':'desligado'; el.className='tool-info'+(telaLigada?' on':''); }
+  const b=document.getElementById('b-tela'); if(b) b.classList.toggle('ativo',telaLigada);
+}
+function toggleTela(){
+  telaLigada=!telaLigada;
+  try{ localStorage.setItem('rea.telaLigada', telaLigada?'1':'0'); }catch(e){}
+  aplicarTela();
+  toast(telaLigada?'Tela ficará sempre ligada com o app aberto':'Tela pode apagar normalmente');
+}
+document.getElementById('b-tela').onclick=toggleTela;
+// readquire o bloqueio ao voltar pro app (necessário no fallback do navegador)
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && telaLigada) aplicarTela(); });
+
 /* botão Mais */
 document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
 
@@ -1274,6 +1307,7 @@ redesenharTrilha();
 desenharFundeio();
 atualizarFundeioStat();
 atualizarPilulaPerfil();
+aplicarTela();
 atualizarPainel();
 // atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
 setInterval(()=>{ if(fPesca.classList.contains('aberta')) renderPesca(); }, 30000);
