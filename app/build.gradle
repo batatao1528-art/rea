@@ -2,23 +2,39 @@ plugins {
     id 'com.android.application'
 }
 
+// Chave de upload da Play Store: crie keystore.properties (NÃO vai pro git) com
+// storeFile, storePassword, keyAlias e keyPassword. Sem ele, o release sai assinado com a chave debug (só p/ teste).
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
 android {
     namespace 'com.cuidadorcaotico.game'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.cuidadorcaotico.game"
         minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        targetSdk 36
+        versionCode 2
+        versionName "1.1"
+    }
+
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            upload {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            // Assinado com a chave debug para poder instalar direto no celular para testes.
-            signingConfig signingConfigs.debug
+            signingConfig keystoreFile.exists() ? signingConfigs.upload : signingConfigs.debug
         }
     }
 

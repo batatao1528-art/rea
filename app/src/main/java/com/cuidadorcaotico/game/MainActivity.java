@@ -3,6 +3,9 @@ package com.cuidadorcaotico.game;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
+import android.os.Build;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -45,6 +48,18 @@ public class MainActivity extends Activity {
         setContentView(web);
         web.loadUrl("file:///android_asset/www/index.html");
         hideSystemUi();
+
+        // Android 13+ (obrigatório ao mirar API 36): voltar via callback de "back preditivo".
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, (OnBackInvokedCallback) this::handleBack);
+        }
+    }
+
+    private void handleBack() {
+        web.evaluateJavascript("window.__back ? window.__back() : false", value -> {
+            if (!"true".equals(value)) finish();
+        });
     }
 
     private void hideSystemUi() {
@@ -79,9 +94,7 @@ public class MainActivity extends Activity {
     // Voltar: dentro do jogo volta ao menu; no menu fecha o app.
     @Override
     public void onBackPressed() {
-        web.evaluateJavascript("window.__back ? window.__back() : false", value -> {
-            if (!"true".equals(value)) finish();
-        });
+        handleBack(); // Android 8–12
     }
 
     @Override
