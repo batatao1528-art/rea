@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- orelhas -->
+    <path android:fillColor="#8D5F2E" android:pathData="M30,34m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0"/>
+    <path android:fillColor="#8D5F2E" android:pathData="M78,34m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0"/>
+    <path android:fillColor="#F4A99B" android:pathData="M30,34m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"/>
+    <path android:fillColor="#F4A99B" android:pathData="M78,34m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-4.5 0"/>
+    <!-- cabeça -->
+    <path android:fillColor="#B98445" android:pathData="M30,32 L78,32 Q86,32 86,42 L86,68 Q86,80 74,80 L34,80 Q22,80 22,68 L22,42 Q22,32 30,32 Z"/>
+    <!-- focinho -->
+    <path android:fillColor="#E0B476" android:pathData="M34,56 L74,56 Q82,56 82,64 L82,70 Q82,78 74,78 L34,78 Q26,78 26,70 L26,64 Q26,56 34,56 Z"/>
+    <!-- nariz -->
+    <path android:fillColor="#4B2E1B" android:pathData="M45,55 L63,55 Q66,55 66,59 Q66,63 63,63 L45,63 Q42,63 42,59 Q42,55 45,55 Z"/>
+    <!-- olhos -->
+    <path android:fillColor="#2B1A10" android:pathData="M38,46m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"/>
+    <path android:fillColor="#2B1A10" android:pathData="M70,46m-4.5,0a4.5,4.5 0,1 1,9 0a4.5,4.5 0,1 1,-9 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M39.5,44.5m-1.6,0a1.6,1.6 0,1 1,3.2 0a1.6,1.6 0,1 1,-3.2 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M71.5,44.5m-1.6,0a1.6,1.6 0,1 1,3.2 0a1.6,1.6 0,1 1,-3.2 0"/>
+    <!-- sorriso -->
+    <path android:strokeColor="#4B2E1B" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M48,69 Q54,74 60,69"/>
+    <!-- bolhas -->
+    <path android:fillColor="#CCFFFFFF" android:pathData="M22,24m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0"/>
+    <path android:fillColor="#CCFFFFFF" android:pathData="M88,28m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+    <path android:fillColor="#CCFFFFFF" android:pathData="M82,18m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0"/>
+</vector>

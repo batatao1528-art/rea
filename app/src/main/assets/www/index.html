@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cuidador Caótico</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <button id="btnHome" class="round small" aria-label="Menu">🏠</button>
+  <div id="progress"><div id="progressFill"></div><span id="progressIcon">🐾</span></div>
+  <button id="btnSound" class="round small" aria-label="Som">🔊</button>
+</div>
+
+<!-- Barra de ferramentas -->
+<div id="toolbar" class="hidden"></div>
+
+<!-- Menu inicial -->
+<div id="menu">
+  <div class="bubbles"></div>
+  <h1><span>O Cuidador</span><span class="big">CAÓTICO</span></h1>
+  <p class="sub">Escolha um bichinho bagunceiro!</p>
+  <div id="cards"></div>
+  <p class="count" id="countLabel"></p>
+</div>
+
+<!-- Vitória -->
+<div id="win" class="hidden">
+  <div class="stars"><span>⭐</span><span>⭐</span><span>⭐</span></div>
+  <h2>Cheirosinho!</h2>
+  <div class="winBtns">
+    <button id="btnBA" class="big-btn">👀<small>Antes e Depois</small></button>
+    <button id="btnNext" class="big-btn green">▶️<small>Outro bichinho</small></button>
+  </div>
+</div>
+
+<!-- Antes e Depois -->
+<div id="ba" class="hidden">
+  <div id="baBox">
+    <img id="baBefore" alt="Antes">
+    <img id="baAfter" alt="Depois">
+    <span class="tag left">ANTES</span>
+    <span class="tag right">DEPOIS</span>
+    <div id="baHandle"><i></i></div>
+  </div>
+  <div class="winBtns">
+    <button id="btnBAReplay" class="big-btn">🔁<small>De novo</small></button>
+    <button id="btnBANext" class="big-btn green">▶️<small>Outro bichinho</small></button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
