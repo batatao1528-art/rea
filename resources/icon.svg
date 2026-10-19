@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<rect width="1024" height="1024" fill="#4a4e69"/>
+<g stroke="#fff" stroke-width="14" opacity=".7"><path d="M0 300H1024M0 724H1024"/></g>
+<path d="M0 512H1024" stroke="#ffd166" stroke-width="16" stroke-dasharray="70 50"/>
+<g transform="rotate(-25 512 540)">
+<rect x="372" y="260" width="280" height="560" rx="90" fill="#ef476f" stroke="#7a1b30" stroke-width="16"/>
+<rect x="400" y="400" width="224" height="110" rx="30" fill="#9bd3f0"/>
+<rect x="410" y="560" width="204" height="150" rx="30" fill="#f58aa4"/>
+<rect x="395" y="275" width="60" height="30" fill="#fff6a8"/><rect x="569" y="275" width="60" height="30" fill="#fff6a8"/>
+</g>
+<g fill="#ffd166" stroke="#1d1f33" stroke-width="10"><polygon points="800,180 830,260 915,250 850,305 880,385 800,335 720,385 750,305 685,250 770,260"/></g>
+<text x="800" y="335" font-family="Arial Black,sans-serif" font-size="90" text-anchor="middle" fill="#d00000">R$</text>
+</svg>

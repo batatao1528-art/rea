@@ -1,0 +1,19 @@
+{
+  "name": "caos-do-transito",
+  "version": "1.0.0",
+  "description": "Caos do Trânsito: Manobrista de Respeito - jogo arcade 2D de estacionamento",
+  "private": true,
+  "scripts": {
+    "serve": "npx http-server www -p 8080",
+    "assets": "npx @capacitor/assets generate --android",
+    "sync": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.0.0"
+  }
+}

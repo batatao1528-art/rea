@@ -1,0 +1,7 @@
+{
+  "appId": "br.com.caosdotransito.manobrista",
+  "appName": "Caos do Trânsito",
+  "webDir": "www",
+  "backgroundColor": "#1d1f33",
+  "android": { "allowMixedContent": false }
+}
