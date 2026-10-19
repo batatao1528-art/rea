@@ -28,6 +28,36 @@
   <p class="count" id="countLabel"></p>
 </div>
 
+<!-- Escolha do modo -->
+<div id="modes" class="hidden">
+  <button id="btnModesBack" class="round small" aria-label="Voltar">⬅️</button>
+  <canvas id="modesPet" width="260" height="260"></canvas>
+  <h2 id="modesTitle"></h2>
+  <div id="modeCards">
+    <button class="card mode" data-mode="bath"><i>🛁</i><span>Hora do Banho</span></button>
+    <button class="card mode" data-mode="skate"><i>🛹</i><span>Skate</span></button>
+    <button class="card mode" data-mode="flap"><i>🎈</i><span>Voo</span></button>
+  </div>
+</div>
+
+<!-- HUD dos minijogos -->
+<div id="miniHud" class="hidden">
+  <button id="btnMiniHome" class="round small" aria-label="Voltar">⬅️</button>
+  <div id="miniScore">0</div>
+  <div id="miniHearts">❤️❤️❤️</div>
+</div>
+
+<!-- Fim de jogo -->
+<div id="over" class="hidden">
+  <h2 id="overTitle">Que divertido!</h2>
+  <div id="overScore"></div>
+  <div id="overBest"></div>
+  <div class="winBtns">
+    <button id="btnOverAgain" class="big-btn green">🔁<small>De novo</small></button>
+    <button id="btnOverModes" class="big-btn">🐾<small>Outro jogo</small></button>
+  </div>
+</div>
+
 <!-- Vitória -->
 <div id="win" class="hidden">
   <div class="stars"><span>⭐</span><span>⭐</span><span>⭐</span></div>

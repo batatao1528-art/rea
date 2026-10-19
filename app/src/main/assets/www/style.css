@@ -85,3 +85,23 @@ button { font-family: inherit; border: 0; cursor: pointer; }
 #ba .winBtns { margin-top: 6px; }
 #ba .big-btn { width: 120px; font-size: 34px; padding: 8px 6px 6px; border-radius: 22px; }
 #ba .big-btn small { font-size: 13px; }
+
+/* Modos / minijogos */
+#modes { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 16px; background: linear-gradient(#9fe0ff, #e6f8ff 60%, #fff7d6); }
+#modes > .round { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 14px; }
+#modesPet { width: 200px; height: 200px; border-radius: 40px; background: #d9f3ff; box-shadow: 0 6px 0 #8fc7e6; }
+#modesTitle { margin: 6px 0 4px; font-size: 38px; color: #ff6b9a; text-shadow: 0 3px 0 #fff; }
+#modeCards { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; }
+.card.mode i { font-size: 46px; }
+.card.mode span { padding-left: 4px; }
+#miniHud { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: max(10px, env(safe-area-inset-top)) 14px 6px; pointer-events: none; }
+#miniHud > * { pointer-events: auto; }
+#miniScore { font-size: 54px; font-weight: 900; color: #fff; -webkit-text-stroke: 8px #35506b; paint-order: stroke fill; text-shadow: 0 4px 0 rgba(0,0,0,.2); pointer-events: none; }
+#miniHearts { font-size: 26px; letter-spacing: 2px; background: rgba(255,255,255,.75); padding: 6px 12px; border-radius: 22px; pointer-events: none; }
+#over { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: rgba(255,255,255,.45); backdrop-filter: blur(4px); animation: pop .4s cubic-bezier(.2,1.6,.4,1); }
+#over h2 { margin: 0; font-size: 46px; color: #ff6b9a; text-shadow: 0 4px 0 #fff, 0 8px 14px rgba(0,0,0,.25); }
+#overScore { font-size: 80px; font-weight: 900; color: #ff9f1c; text-shadow: 0 4px 0 #fff; line-height: 1; }
+#overBest { font-size: 20px; font-weight: 800; color: #35506b; min-height: 1.3em; }

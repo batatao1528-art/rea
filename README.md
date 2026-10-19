@@ -16,6 +16,7 @@ Ao terminar, o botão 👀 mostra o **Antes e Depois** com um slider (ótimo par
 ## Estrutura
 - `app/src/main/assets/www/` – o jogo (HTML5 Canvas, sem dependências, sem imagens externas, sons sintetizados).
 - `app/src/main/java/.../MainActivity.java` – casca Android (WebView em tela cheia, sem permissão de internet).
+- Minijogos por bichinho: **Skate** (toque para pular obstáculos e pegar estrelas) e **Voo** (estilo Flappy, com hélice na cabeça).
 - `dist/CuidadorCaotico.apk` – APK pronto para instalar (assinado com chave de debug, para testes).
 
 ## Gerar o APK
