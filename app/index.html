@@ -313,6 +313,13 @@ body{
 @keyframes pisca{50%{background:#a8282c}}
 @media (prefers-reduced-motion:reduce){.alarme-fundeio{animation:none}}
 
+/* ---- Bússola ---- */
+.bussola{position:fixed;z-index:430;
+  bottom:calc(100px + env(safe-area-inset-bottom,0px));
+  right:max(12px,env(safe-area-inset-right,0px));
+  width:54px;height:54px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));pointer-events:none}
+.bussola-rosa{width:54px;height:54px;transition:transform .15s linear}
+.bussola svg{display:block;width:54px;height:54px}
 </style>
 </head>
 <body>
@@ -343,6 +350,20 @@ body{
 </button>
 
 <div class="selo"><b>NavegaDor</b> · carta livre · sem mensalidade</div>
+
+<div class="bussola" id="bussola" aria-label="Bússola">
+  <div class="bussola-rosa" id="bussola-rosa">
+    <svg viewBox="0 0 54 54">
+      <circle cx="27" cy="27" r="25" fill="rgba(10,24,36,.82)" stroke="rgba(120,170,210,.35)" stroke-width="1.5"/>
+      <polygon points="27,6 32,27 27,24 22,27" fill="#e5484d"/>
+      <polygon points="27,48 22,27 27,30 32,27" fill="#9fb6c8"/>
+      <text x="27" y="15.5" text-anchor="middle" font-size="9" font-weight="700" fill="#eaf2f8">N</text>
+      <text x="27" y="46" text-anchor="middle" font-size="7" fill="#9fb6c8">S</text>
+      <text x="45" y="30" text-anchor="middle" font-size="7" fill="#9fb6c8">L</text>
+      <text x="9" y="30" text-anchor="middle" font-size="7" fill="#9fb6c8">O</text>
+    </svg>
+  </div>
+</div>
 
 <div class="doca">
   <button class="btn" id="b-camadas">
@@ -1314,6 +1335,18 @@ document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizar
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+
+/* ---------------- Bússola (gira com o sensor do aparelho) ---------------- */
+const bussolaRosa=document.getElementById('bussola-rosa');
+function onOrient(e){
+  let h=null;
+  if(typeof e.webkitCompassHeading==='number' && !isNaN(e.webkitCompassHeading)) h=e.webkitCompassHeading;
+  else if(e.absolute===true && typeof e.alpha==='number') h=(360-e.alpha)%360;
+  if(h==null) return;
+  bussolaRosa.style.transform='rotate('+(-h).toFixed(1)+'deg)';
+}
+if('ondeviceorientationabsolute' in window) window.addEventListener('deviceorientationabsolute', onOrient, true);
+else if('DeviceOrientationEvent' in window) window.addEventListener('deviceorientation', onOrient, true);
 
 /* ---------------- Início ---------------- */
 document.getElementById('b-aviso-ok').onclick=()=>{
