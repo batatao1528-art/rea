@@ -14,3 +14,4 @@ ext {
     androidxEspressoCoreVersion = '3.5.1'
     cordovaAndroidVersion = '10.1.1'
 }
+// bump para gerar versionCode novo (Play reserva os codigos ja usados)
