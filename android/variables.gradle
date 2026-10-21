@@ -14,4 +14,4 @@ ext {
     androidxEspressoCoreVersion = '3.5.1'
     cordovaAndroidVersion = '10.1.1'
 }
-// bump v10 para o teste fechado
+// bump nova versao para o teste fechado
