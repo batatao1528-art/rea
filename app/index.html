@@ -13,6 +13,7 @@
 /* Layout: mapa em tela cheia, painel de dados flutuante no topo, barra de ações embaixo.
    Paleta náutica: fundo casco escuro, acento laranja-boia (segurança/visibilidade). */
 :root{
+  --ad-h:0px;             /* altura reservada p/ o banner de anúncio (0 quando não há) */
   --casco:#0a1824;        /* fundo escuro (noite no mar) */
   --painel:rgba(12,27,41,.92);
   --painel-borda:rgba(120,170,210,.22);
@@ -75,7 +76,7 @@ body{
 /* ---- Marca d'água / selo ---- */
 .selo{
   position:fixed;z-index:400;
-  bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  bottom:calc(76px + var(--ad-h) + env(safe-area-inset-bottom,0px));
   left:max(12px,env(safe-area-inset-left,0px));
   background:var(--painel);border:1px solid var(--painel-borda);
   border-radius:10px;padding:5px 9px;font-size:11px;color:var(--tinta-fraca);
@@ -86,7 +87,7 @@ body{
 /* ---- Barra de ações (base) ---- */
 .doca{
   position:fixed;left:0;right:0;
-  bottom:0;
+  bottom:var(--ad-h);
   z-index:500;
   display:flex;gap:8px;justify-content:space-between;
   padding:10px max(12px,env(safe-area-inset-left,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-right,0px));
@@ -163,7 +164,7 @@ body{
 
 /* ---- Toast ---- */
 .toast{position:fixed;z-index:800;left:50%;transform:translateX(-50%);
-  bottom:calc(88px + env(safe-area-inset-bottom,0px));
+  bottom:calc(88px + var(--ad-h) + env(safe-area-inset-bottom,0px));
   background:var(--casco);border:1px solid var(--boia);color:var(--tinta);
   padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;text-align:center;
   max-width:86vw;box-shadow:var(--sombra);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
@@ -315,7 +316,7 @@ body{
 
 /* ---- Bússola ---- */
 .bussola{position:fixed;z-index:430;
-  bottom:calc(100px + env(safe-area-inset-bottom,0px));
+  bottom:calc(100px + var(--ad-h) + env(safe-area-inset-bottom,0px));
   right:max(12px,env(safe-area-inset-right,0px));
   width:54px;height:54px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));pointer-events:none}
 .bussola-rosa{width:54px;height:54px;transition:transform .15s linear}
@@ -1331,6 +1332,27 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 /* botão Mais */
 document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
 
+/* ================= Anúncios (AdMob) =================
+   IDs de TESTE do Google abaixo. Quando você criar sua conta no AdMob,
+   troque por: App ID -> no AndroidManifest.xml; banner -> AD_BANNER aqui. */
+const AD_BANNER = 'ca-app-pub-3940256099942544/6300978111'; // banner de TESTE
+async function iniciarAnuncios(){
+  const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
+  if(!A) return; // só existe no app empacotado (não no navegador)
+  try{
+    await A.initialize({});
+    await A.showBanner({
+      adId: AD_BANNER,
+      adSize: 'ADAPTIVE_BANNER',
+      position: 'BOTTOM_CENTER',
+      margin: 0,
+      isTesting: true
+    });
+    // reserva espaço embaixo pra barra não ficar atrás do banner
+    document.documentElement.style.setProperty('--ad-h','62px');
+  }catch(e){ /* sem anúncio: app segue normal */ }
+}
+
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
@@ -1359,6 +1381,7 @@ desenharFundeio();
 atualizarFundeioStat();
 atualizarPilulaPerfil();
 aplicarTela();
+iniciarAnuncios();
 atualizarPainel();
 // atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
 setInterval(()=>{ if(fPesca.classList.contains('aberta')) renderPesca(); }, 30000);
