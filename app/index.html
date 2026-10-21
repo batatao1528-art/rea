@@ -1332,27 +1332,6 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 /* botão Mais */
 document.getElementById('b-mais').onclick=()=>{ atualizarTrilhaStat(); atualizarFundeioStat(); if(fundeio) document.getElementById('in-raio').value=fundeio.raio; abrir(fTools); };
 
-/* ================= Anúncios (AdMob) =================
-   IDs de TESTE do Google abaixo. Quando você criar sua conta no AdMob,
-   troque por: App ID -> no AndroidManifest.xml; banner -> AD_BANNER aqui. */
-const AD_BANNER = 'ca-app-pub-3940256099942544/6300978111'; // banner de TESTE
-async function iniciarAnuncios(){
-  const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
-  if(!A) return; // só existe no app empacotado (não no navegador)
-  try{
-    await A.initialize({});
-    await A.showBanner({
-      adId: AD_BANNER,
-      adSize: 'ADAPTIVE_BANNER',
-      position: 'BOTTOM_CENTER',
-      margin: 0,
-      isTesting: true
-    });
-    // reserva espaço embaixo pra barra não ficar atrás do banner
-    document.documentElement.style.setProperty('--ad-h','62px');
-  }catch(e){ /* sem anúncio: app segue normal */ }
-}
-
 /* ---------------- Service worker (instalável + cache de tiles) ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
@@ -1381,7 +1360,6 @@ desenharFundeio();
 atualizarFundeioStat();
 atualizarPilulaPerfil();
 aplicarTela();
-iniciarAnuncios();
 atualizarPainel();
 // atualiza os tempos ("há X min") das redes enquanto a folha de pesca estiver aberta
 setInterval(()=>{ if(fPesca.classList.contains('aberta')) renderPesca(); }, 30000);
