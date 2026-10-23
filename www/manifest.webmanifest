@@ -1,0 +1,11 @@
+{
+  "name": "Vale Florido",
+  "short_name": "Vale Florido",
+  "description": "Uma fazendinha em pixel art: plante, regue, colha, venda, pesque e minere.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#16301c",
+  "theme_color": "#2c5a2e",
+  "lang": "pt-BR"
+}

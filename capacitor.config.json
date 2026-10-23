@@ -1,0 +1,11 @@
+{
+  "appId": "com.valeflorido.fazenda",
+  "appName": "Vale Florido",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

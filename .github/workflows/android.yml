@@ -1,0 +1,60 @@
+name: Build APK Vale Florido (Android)
+
+# Gera o APK de teste a cada push.
+# Baixe em: Actions > (execução) > Artifacts > vale-florido-apk
+on:
+  push:
+    branches:
+      - ccr-30ee78ea-arwqj5
+      - main
+    paths:
+      - 'www/**'
+      - 'android-template/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Capacitor
+        run: npm install
+
+      - name: Criar projeto Android
+        run: npx cap add android
+
+      - name: Paisagem + tela cheia
+        run: |
+          sed -i 's|android:name=".MainActivity"|android:name=".MainActivity" android:screenOrientation="sensorLandscape"|' android/app/src/main/AndroidManifest.xml
+          cp android-template/MainActivity.java android/app/src/main/java/com/valeflorido/fazenda/MainActivity.java
+          grep -n screenOrientation android/app/src/main/AndroidManifest.xml
+
+      - name: Sincronizar web -> Android
+        run: npx cap sync android
+
+      - name: Construir APK de debug
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Publicar APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: vale-florido-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
