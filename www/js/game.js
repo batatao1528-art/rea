@@ -1,13 +1,14 @@
 'use strict';
 /*
- * Vale Florido — lógica principal: mapa, fazenda, tempo, jogador, ações, animais,
- * moradores, pedidos, festivais e renderização. O conteúdo (itens, receitas...) fica em data.js.
+ * Vale Florido — lógica principal: cenas (fazenda, estufa, mina), tempo, jogador, ações, animais,
+ * moradores, pedidos, projetos, festivais, combate e renderização. O conteúdo fica em data.js.
  *
  * Core loop: limpar/preparar o solo -> plantar e regar -> esperar os dias ->
  * colher -> vender na Caixa de Envio -> melhorar ferramentas / expandir.
  */
-const TS = 16, MW = 52, MH = 40;
-const G_GRASS = 0, G_PATH = 1, G_PLANK = 2, G_WATER = 3, G_STONE = 4;
+const TS = 16, FW = 52, FH = 40, GH_W = 12, GH_H = 10;
+let MW = FW, MH = FH; // tamanho da cena atual
+const G_GRASS = 0, G_PATH = 1, G_PLANK = 2, G_WATER = 3, G_STONE = 4, G_CAVE = 5, G_WALL = 6, G_EXIT = 7;
 const SEASONS = ['Primavera', 'Verão', 'Outono', 'Inverno'];
 const DAYS_PER_SEASON = 28;
 const DAY_START = 6 * 60, PASS_OUT = 26 * 60; // 06:00 e 02:00 do dia seguinte
@@ -17,40 +18,66 @@ const SAVE_KEY = 'valeflorido_save_v1';
 const SPEED = 70; // pixels de arte por segundo
 const QMULT = [1, 1.25, 1.5]; // normal, prata, ouro
 const QNAME = ['', ' (prata)', ' (ouro)'];
+const MAX_LEVEL = 20;
+const GEMS = ['amethyst', 'emerald', 'ruby', 'diamond'];
 
-const HP = { tree: 4, stump: 3, rock: 2, copper: 3, iron: 4, weed: 1, branch: 1, pine: 999, fence: 999 };
-// Decorações que voltam para a mochila ao serem recolhidas
-const PICKUP = { sprinkler: 'sprinkler', sprinkler2: 'sprinkler2', lamp: 'lamp', flowerbed: 'flowerbed', trophy: 'trophy', pfence: 'fence_item' };
+// Poder das ferramentas por nível (índice = nível)
+const HOE_TILES = [1, 1, 3, 5], CAN_TILES = [1, 1, 3, 5], CAN_CAP = [0, 20, 40, 70];
+const AXE_DMG = [0, 1, 2, 4], PICK_DMG = [0, 1, 2, 4], SWORD_DMG = [0, 3, 6, 11];
+
+const HP = { tree: 4, stump: 3, rock: 2, copper: 3, iron: 4, gold: 5, gem: 4, weed: 1, branch: 1, pine: 999, fence: 999 };
+const ROCKS = ['rock', 'copper', 'iron', 'gold'];
+const isRock = t => ROCKS.includes(t) || t.startsWith('gem_');
+// Objetos colocados que voltam para a mochila ao serem recolhidos
+const PICKUP = {
+  sprinkler: 'sprinkler', sprinkler2: 'sprinkler2', sprinkler3: 'sprinkler3', lamp: 'lamp', flowerbed: 'flowerbed', trophy: 'trophy',
+  pfence: 'fence_item', keg: 'keg', jar: 'jar', cheese_press: 'cheese_press', mayo_machine: 'mayo_machine', statue: 'statue',
+};
+const SPRINKLER_R = { sprinkler: 1, sprinkler2: 2, sprinkler3: 3 };
 
 const HOUSE = { x: 5, y: 3, w: 5, h: 4, door: { x: 7, y: 6 } };
 const BIN = { x: 10, y: 6, w: 2, h: 1 };
 const STALL = { x: 19, y: 5, w: 3, h: 2 };
 const BOARD = { x: 17, y: 6, w: 1, h: 1 };
+const ALTAR = { x: 13, y: 6, w: 1, h: 1 };
 const COOP = { x: 3, y: 10, w: 3, h: 2, pen: { x0: 3, y0: 12, x1: 6, y1: 15 } };
 const BARN = { x: 3, y: 18, w: 4, h: 3, pen: { x0: 3, y0: 21, x1: 6, y1: 25 } };
 const FEST = { x: 22, y: 5, w: 3, h: 2 };
+const MINE_ENT = { x: 43, y: 3, w: 3, h: 2, door: { x: 44, y: 4 } };
+const GH_B = { x: 27, y: 4, w: 5, h: 4, door: { x: 29, y: 7 } };
 const QUARRY = { x0: 37, y0: 3, x1: 48, y1: 10 };
 const EXP = { x0: 36, y0: 12, x1: 48, y1: 37 };
 const WAKE = { x: 7 * TS + 8, y: 7 * TS + 12 };
 
+const TOOL_UPS = [
+  ['hoe', 2, 'Enxada de Ferro', 'Ara 3 tiles em linha de uma vez.', 400, { copper: 5 }],
+  ['hoe', 3, 'Enxada de Ouro', 'Ara 5 tiles em linha de uma vez.', 2000, { gold: 5 }],
+  ['can', 2, 'Regador de Ferro', 'Guarda 40 de água e rega 3 tiles em linha.', 400, { copper: 5 }],
+  ['can', 3, 'Regador de Ouro', 'Guarda 70 de água e rega 5 tiles em linha.', 2000, { gold: 5 }],
+  ['axe', 2, 'Machado de Ferro', 'Dano dobrado em árvores e tocos.', 350, { iron: 3 }],
+  ['axe', 3, 'Machado de Ouro', 'Derruba árvores num instante.', 1500, { gold: 5 }],
+  ['pick', 2, 'Picareta de Ferro', 'Quebra pedras mais rápido e encontra mais minério.', 350, { iron: 3 }],
+  ['pick', 3, 'Picareta de Ouro', 'Quebra quase tudo de uma vez e acha ainda mais minério.', 1500, { gold: 5 }],
+  ['sword', 2, 'Espada de Ferro', 'Dano 6 nos monstros da mina.', 1000, { iron: 5 }],
+  ['sword', 3, 'Espada de Ouro', 'Dano 11 nos monstros da mina.', 3000, { gold: 5 }],
+];
 const UPGRADES = [
-  { id: 'hoe', name: 'Enxada de Ferro', icon: 'hoe2', desc: 'Ara 3 tiles em linha de uma vez.', cost: 400, mats: { copper: 5 },
-    have: () => S.tools.hoe >= 2, apply: () => { S.tools.hoe = 2; } },
-  { id: 'can', name: 'Regador Grande', icon: 'can2f', desc: 'Guarda 40 de água e rega 3 tiles em linha.', cost: 400, mats: { copper: 5 },
-    have: () => S.tools.can >= 2, apply: () => { S.tools.can = 2; S.water = waterCap(); } },
-  { id: 'axe', name: 'Machado de Ferro', icon: 'axe2', desc: 'Dano dobrado em árvores e tocos.', cost: 350, mats: { iron: 3 },
-    have: () => S.tools.axe >= 2, apply: () => { S.tools.axe = 2; } },
-  { id: 'pick', name: 'Picareta de Ferro', icon: 'pick2', desc: 'Quebra pedras mais rápido e encontra mais minério.', cost: 350, mats: { iron: 3 },
-    have: () => S.tools.pick >= 2, apply: () => { S.tools.pick = 2; } },
-  { id: 'coop', name: 'Galinheiro', icon: 'egg', desc: 'Casa para até 4 galinhas, a oeste da sua casa.', cost: 600, mats: { wood: 40, stone: 10 },
+  ...TOOL_UPS.map(([tool, lvl, name, desc, cost, mats]) => ({
+    id: tool + lvl, shop: 'tiao', name, desc, cost, mats, icon: tool + lvl + (tool === 'can' ? 'f' : ''),
+    need: () => S.tools[tool] >= lvl - 1, have: () => S.tools[tool] >= lvl,
+    apply: () => { S.tools[tool] = lvl; if (tool === 'can') S.water = waterCap(); },
+  })),
+  { id: 'coop', shop: 'rosa', name: 'Galinheiro', icon: 'egg', desc: 'Casa para até 4 galinhas, a oeste da sua casa.', cost: 600, mats: { wood: 40, stone: 10 },
     have: () => S.coop, apply: () => buildAnimalHouse('coop') },
-  { id: 'barn', name: 'Estábulo', icon: 'milk', desc: 'Casa para até 3 vacas, perto do lago.', cost: 1500, mats: { wood: 80, stone: 30 },
+  { id: 'barn', shop: 'rosa', name: 'Estábulo', icon: 'milk', desc: 'Casa para até 3 vacas, perto do lago.', cost: 1500, mats: { wood: 80, stone: 30 },
     have: () => S.barn, apply: () => buildAnimalHouse('barn') },
-  { id: 'bag1', name: 'Mochila Maior', icon: 'crate', desc: '+6 espaços no inventário.', cost: 500, mats: {},
+  { id: 'bag1', shop: 'rosa', name: 'Mochila Maior', icon: 'crate', desc: '+6 espaços no inventário.', cost: 500, mats: {},
     have: () => S.bag >= 18, apply: () => growBag(18) },
-  { id: 'bag2', name: 'Mochila de Couro', icon: 'crate', desc: '+6 espaços no inventário.', cost: 1500, mats: {},
+  { id: 'bag2', shop: 'rosa', name: 'Mochila de Couro', icon: 'crate', desc: '+6 espaços no inventário.', cost: 1500, mats: {},
     need: () => S.bag >= 18, have: () => S.bag >= 24, apply: () => growBag(24) },
-  { id: 'expand', name: 'Expansão da Fazenda', icon: 'wood', desc: 'Remove a cerca a leste e libera um terreno novo.', cost: 1500, mats: { wood: 50 },
+  { id: 'bag3', shop: 'rosa', name: 'Mochila do Aventureiro', icon: 'crate', desc: '+6 espaços no inventário.', cost: 5000, mats: { slime: 30 },
+    need: () => S.bag >= 24, have: () => S.bag >= 30, apply: () => growBag(30) },
+  { id: 'expand', shop: 'rosa', name: 'Expansão da Fazenda', icon: 'wood', desc: 'Remove a cerca a leste e libera um terreno novo.', cost: 1500, mats: { wood: 50 },
     have: () => S.expanded, apply: () => expandFarm() },
 ];
 
@@ -70,26 +97,41 @@ const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.i
 const fmtTime = m => { const h = Math.floor(m / 60) % 24, mm = Math.floor(m % 60 / 10) * 10; return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`; };
 const inRect = (r, x, y) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 
-// Qualidade: o id do item pode vir com sufixo "@1" (prata) ou "@2" (ouro)
+// Ids de item: "base@q" (qualidade 1 prata, 2 ouro); artesanais levam a origem: "juice~melon"
 const baseOf = id => id.split('@')[0];
 const qualOf = id => +(id.split('@')[1] || 0);
 const withQ = (id, q) => (q ? `${id}@${q}` : id);
-const def = id => ITEMS[baseOf(id)];
-const nameOf = id => def(id).name + QNAME[qualOf(id)];
-const sellOf = id => Math.round((def(id).sell || 0) * QMULT[qualOf(id)]);
-const energyOf = id => Math.round((def(id).energy || 0) * QMULT[qualOf(id)]);
-const matches = (id, want) => (want === 'fish' ? def(id).kind === 'fish' : baseOf(id) === want);
-const ingName = id => (id === 'fish' ? 'Peixe (qualquer)' : ITEMS[id].name);
-const ingIcon = id => (id === 'fish' ? 'fish_carp' : id);
+const kindOf = id => baseOf(id).split('~')[0];
+const srcOf = id => baseOf(id).split('~')[1];
+const def = id => ITEMS[kindOf(id)];
+const nameOf = id => (srcOf(id) ? `${def(id).name} de ${ITEMS[srcOf(id)].name}` : def(id).name) + QNAME[qualOf(id)];
+function sellOf(id) {
+  const d = def(id), src = srcOf(id);
+  let v = src ? ITEMS[src].sell * d.mult + (d.add || 0) : (d.sell || 0);
+  if (d.kind === 'artisan' && S.perks.artisan) v *= 1.25;
+  return Math.round(v * QMULT[qualOf(id)]);
+}
+const energyOf = id => Math.round((srcOf(id) ? ITEMS[srcOf(id)].energy * 1.5 : (def(id).energy || 0)) * QMULT[qualOf(id)]);
+function matches(id, want) {
+  if (want === 'fish') return def(id).kind === 'fish';
+  if (want === 'goldcrop') return def(id).kind === 'crop' && qualOf(id) === 2;
+  if (want === 'juice' || want === 'jam') return kindOf(id) === want;
+  return baseOf(id) === want;
+}
+const ingName = id => ({ fish: 'Peixe (qualquer)', goldcrop: 'Colheita ★ ouro (qualquer)', juice: 'Suco (qualquer)', jam: 'Conserva (qualquer)' }[id] || ITEMS[id].name);
+const ingIcon = id => ({ fish: 'fish_carp', goldcrop: 'pumpkin', juice: 'juice~strawberry', jam: 'jam~tomato' }[id] || id);
 
 // ---------------------------------------------------------------- estado
 let S = null;   // estado salvo (fazenda, inventário, data...)
 let P = null;   // jogador em tempo real
-let ground = [];
+let scene = 'farm';
+let ground = [], farmGround = [], ghGround = [];
+let OBJS = {}, FARM = {}, FLOOR = {}; // objetos, terra arada e pisos da cena atual
+let mine = null; // andar atual da mina (não é salvo)
 let particles = [], floaters = [], rain = [];
 let animRT = {}; // posição dos animais na tela (não é salva)
 let fishing = null;
-let sleeping = false;
+let sleeping = false, transitioning = false;
 let zoom = 4, camX = 0, camY = 0, viewW = 0, viewH = 0;
 let lastT = 0, clock = 0, achTimer = 0;
 const input = { keys: new Set(), joy: null, actionHeld: false, lastAction: 0 };
@@ -100,39 +142,63 @@ const lightCv = document.createElement('canvas');
 const lctx = lightCv.getContext('2d');
 
 function buildGround() {
-  ground = [];
-  for (let y = 0; y < MH; y++) ground.push(new Array(MW).fill(G_GRASS));
-  for (let y = QUARRY.y0; y <= QUARRY.y1; y++) for (let x = QUARRY.x0; x <= QUARRY.x1; x++) ground[y][x] = G_STONE;
-  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+  farmGround = [];
+  for (let y = 0; y < FH; y++) farmGround.push(new Array(FW).fill(G_GRASS));
+  const g = farmGround;
+  for (let y = QUARRY.y0; y <= QUARRY.y1; y++) for (let x = QUARRY.x0; x <= QUARRY.x1; x++) g[y][x] = G_STONE;
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
     const dx = (x - 10) / 5.2, dy = (y - 31) / 3.6;
-    if (dx * dx + dy * dy <= 1) ground[y][x] = G_WATER;
+    if (dx * dx + dy * dy <= 1) g[y][x] = G_WATER;
   }
-  for (let x = 7; x <= 37; x++) ground[8][x] = G_PATH;
-  for (let y = 7; y <= 27; y++) ground[y][7] = G_PATH;
-  for (let x = 8; x <= 10; x++) ground[27][x] = G_PATH;
-  for (let y = 28; y <= 31; y++) ground[y][10] = G_PLANK;
+  for (let x = 7; x <= 37; x++) g[8][x] = G_PATH;
+  for (let y = 7; y <= 27; y++) g[y][7] = G_PATH;
+  for (let x = 8; x <= 10; x++) g[27][x] = G_PATH;
+  for (let y = 28; y <= 31; y++) g[y][10] = G_PLANK;
+  // estufa: paredes de vidro, chão de terra e porta embaixo
+  ghGround = [];
+  for (let y = 0; y < GH_H; y++) {
+    const row = [];
+    for (let x = 0; x < GH_W; x++) {
+      const wall = y === 0 || x === 0 || x === GH_W - 1 || y === GH_H - 1;
+      row.push(y === GH_H - 1 && (x === 5 || x === 6) ? G_EXIT : wall ? G_WALL : G_GRASS);
+    }
+    ghGround.push(row);
+  }
+  ground = farmGround;
+}
+
+function setScene(name, x, y, dir) {
+  scene = name;
+  if (name === 'farm') { ground = farmGround; MW = FW; MH = FH; OBJS = S.objs; FARM = S.farm; FLOOR = S.floor; }
+  else if (name === 'gh') { ground = ghGround; MW = GH_W; MH = GH_H; OBJS = S.ghObjs; FARM = S.ghFarm; FLOOR = S.ghFloor; }
+  else { ground = mine.ground; MW = mine.w; MH = mine.h; OBJS = mine.objs; FARM = {}; FLOOR = {}; }
+  if (P && x != null) { P.x = x; P.y = y; P.dir = dir; P.path = null; P.pathEnd = null; P.busy = false; P.anim = 'idle'; }
+  fishing = null; particles = []; floaters = [];
 }
 
 const festivalToday = () => !!S && S.day === FESTIVAL_DAY;
 function structs() {
-  const a = [HOUSE, BIN, STALL, BOARD];
+  if (scene !== 'farm') return [];
+  const a = [HOUSE, BIN, STALL, BOARD, ALTAR, MINE_ENT];
   if (S) {
     if (S.coop) a.push(COOP);
     if (S.barn) a.push(BARN);
+    if (S.greenhouse) a.push(GH_B);
     if (festivalToday()) a.push(FEST);
   }
   return a;
 }
 const structAt = (x, y) => structs().find(s => x >= s.x && x < s.x + s.w && y >= s.y && y < s.y + s.h) || null;
-const obj = (x, y) => S.objs[key(x, y)];
-const farmTile = (x, y) => S.farm[key(x, y)];
+const obj = (x, y) => OBJS[key(x, y)];
+const farmTile = (x, y) => FARM[key(x, y)];
 const inMap = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
-const npcAt = (x, y) => Object.keys(NPCS).find(id => NPCS[id].x === x && NPCS[id].y === y) || null;
-const inPen = (x, y) => (S.coop && inRect(COOP.pen, x, y)) || (S.barn && inRect(BARN.pen, x, y));
+const npcAt = (x, y) => (scene === 'farm' ? Object.keys(NPCS).find(id => NPCS[id].x === x && NPCS[id].y === y) || null : null);
+const inPen = (x, y) => scene === 'farm' && ((S.coop && inRect(COOP.pen, x, y)) || (S.barn && inRect(BARN.pen, x, y)));
 
 function isBlocked(x, y) {
   if (!inMap(x, y)) return true;
-  if (ground[y][x] === G_WATER) return true;
+  const g = ground[y][x];
+  if (g === G_WATER || g === G_WALL) return true;
   return !!(obj(x, y) || structAt(x, y) || npcAt(x, y));
 }
 
@@ -141,19 +207,19 @@ function newFarmTile(x, y) {
 }
 
 function genObjects(s) {
-  const r = rng(20261023);
+  const r = rng(20261023), g = farmGround;
   const put = (x, y, t) => { s.objs[key(x, y)] = { t, hp: HP[t] }; };
-  const free = (x, y) => ground[y][x] === G_GRASS && !structAt(x, y) && !s.objs[key(x, y)];
+  const free = (x, y) => g[y][x] === G_GRASS && !s.objs[key(x, y)];
   const reserved = (x, y) => (y <= 9 && x <= 24) || (x >= 12 && x <= 17 && y >= 9 && y <= 13) ||
     (Math.abs(x - 7) <= 1 && y <= 28) || (y === 7 || y === 9) && x <= 37;
-  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
-    if (x < 2 || y < 2 || x >= MW - 2 || y >= MH - 2) { if (ground[y][x] !== G_PATH) put(x, y, 'pine'); continue; }
-    const ring = x <= 2 || y <= 2 || x >= MW - 3 || y >= MH - 3;
+  for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+    if (x < 2 || y < 2 || x >= FW - 2 || y >= FH - 2) { if (g[y][x] !== G_PATH) put(x, y, 'pine'); continue; }
+    const ring = x <= 2 || y <= 2 || x >= FW - 3 || y >= FH - 3;
     if (ring && free(x, y) && r() < 0.5 && !(x <= 12 && y <= 9)) put(x, y, 'pine');
   }
   for (let y = 11; y <= 37; y++) put(35, y, 'fence');
   for (let x = 36; x <= 48; x++) put(x, 11, 'fence');
-  for (let y = 3; y < MH - 2; y++) for (let x = 3; x < MW - 3; x++) {
+  for (let y = 3; y < FH - 2; y++) for (let x = 3; x < FW - 3; x++) {
     if (!free(x, y) || reserved(x, y)) continue;
     const exp = x >= EXP.x0 && y >= EXP.y0;
     const north = y <= 9 && x > 24;
@@ -165,7 +231,7 @@ function genObjects(s) {
     if (t) put(x, y, t);
   }
   for (let y = QUARRY.y0; y <= QUARRY.y1; y++) for (let x = QUARRY.x0; x <= QUARRY.x1; x++) {
-    if (ground[y][x] === G_STONE && !s.objs[key(x, y)] && r() < 0.4) put(x, y, oreRoll(r, 1));
+    if (g[y][x] === G_STONE && !s.objs[key(x, y)] && r() < 0.4) put(x, y, oreRoll(r, 1));
   }
 }
 
@@ -178,7 +244,7 @@ function oreRoll(r, pickLvl) {
 function newState() {
   const s = {
     v: 1, day: 1, season: 0, year: 1, time: DAY_START, gold: 250, energy: 100, level: 1, xp: 0,
-    bag: 12, inv: [], sel: 0, tools: { hoe: 1, can: 1, axe: 1, pick: 1 }, water: 20,
+    bag: 12, inv: [], sel: 0, tools: { hoe: 1, can: 1, axe: 1, pick: 1, sword: 1 }, water: 20,
     farm: {}, objs: {}, bin: [], expanded: false, weather: 'sun',
     px: WAKE.x, py: WAKE.y, dir: 0, seenIntro: false,
   };
@@ -195,30 +261,38 @@ function migrate(s) {
   const d = {
     stats: {}, flags: {}, ach: {}, floor: {}, animals: [], coop: false, barn: false,
     friends: {}, talked: {}, gifted: {}, npcGifts: {}, quests: [], festDone: '', nextId: 1,
+    ghFarm: {}, ghObjs: {}, ghFloor: {}, greenhouse: false, bundles: {}, perks: {}, found: {}, colRewards: {},
+    mineMax: 0, mineChests: {}, hp: 100, bestCandles: 0, evalKey: '', lastEval: null, ending: false,
   };
   for (const k in d) if (s[k] === undefined) s[k] = d[k];
-  for (const k of ['harvest', 'fish', 'ore', 'earned', 'cooked', 'quests']) if (s.stats[k] === undefined) s.stats[k] = 0;
+  for (const k of ['harvest', 'fish', 'ore', 'earned', 'cooked', 'quests', 'kills', 'artisan']) if (s.stats[k] === undefined) s.stats[k] = 0;
+  if (!s.tools.sword) s.tools.sword = 1;
   for (const id in NPCS) if (s.friends[id] === undefined) s.friends[id] = 0;
-  // garante que nada bloqueie os moradores e o quadro de pedidos
-  for (const id in NPCS) if (NPCS[id].x != null) delete s.objs[key(NPCS[id].x, NPCS[id].y)];
-  delete s.objs[key(BOARD.x, BOARD.y)];
-  delete s.objs[key(BOARD.x, BOARD.y + 1)];
+  for (const it of s.inv) if (it) s.found[kindOf(it.id)] = true;
+  // garante que nada bloqueie moradores, quadro, santuário e a entrada da mina
+  const clear = [[BOARD.x, BOARD.y], [BOARD.x, BOARD.y + 1], [ALTAR.x, ALTAR.y], [ALTAR.x, ALTAR.y + 1], [MINE_ENT.door.x, MINE_ENT.door.y + 1]];
+  for (const id in NPCS) if (NPCS[id].x != null) clear.push([NPCS[id].x, NPCS[id].y]);
+  for (let y = MINE_ENT.y; y < MINE_ENT.y + MINE_ENT.h; y++) for (let x = MINE_ENT.x; x < MINE_ENT.x + MINE_ENT.w; x++) clear.push([x, y]);
+  for (const [x, y] of clear) { delete s.objs[key(x, y)]; delete s.farm[key(x, y)]; delete s.floor[key(x, y)]; }
   return s;
 }
 
 function newPlayer() {
-  return { x: S.px, y: S.py, dir: S.dir || 0, anim: 'idle', frame: 0, animT: 0,
+  return { x: S.px, y: S.py, dir: S.dir || 0, anim: 'idle', frame: 0, animT: 0, invuln: 0,
     busy: false, actT: 0, dur: 0, frameDur: 0.11, frames: 1, hitAt: null, onHit: null, path: null, pathEnd: null };
 }
 
 const maxEnergy = () => 100 + (S.level - 1) * 5;
-const waterCap = () => S.tools.can >= 2 ? 40 : 20;
-const xpNeed = l => l * 100;
+const maxHP = () => 100 + (S.level - 1) * 3 + (S.perks.miner ? 50 : 0);
+const waterCap = () => CAN_CAP[S.tools.can];
+const xpNeed = l => (l < 10 ? l * 100 : 1000 + (l - 9) * 300);
 const playerTile = () => [Math.floor(P.x / TS), Math.floor((P.y - 3) / TS)];
 const targetTile = () => { const [x, y] = playerTile(), v = DIRV[P.dir]; return [x + v[0], y + v[1]]; };
 const selItem = () => S.inv[S.sel] || null;
 const hearts = id => Math.floor(S.friends[id] / 100);
 const discount = id => (hearts(id) >= 5 ? 0.9 : 1);
+const dayIndex = () => (S.year - 1) * 112 + S.season * 28 + (S.day - 1);
+const absMin = () => dayIndex() * 1440 + S.time;
 
 function iconId(id) {
   switch (id) {
@@ -226,6 +300,7 @@ function iconId(id) {
     case 'can': return 'can' + S.tools.can + (S.water > 0 ? 'f' : '');
     case 'axe': return 'axe' + S.tools.axe;
     case 'pick': return 'pick' + S.tools.pick;
+    case 'sword': return 'sword' + S.tools.sword;
     default: return baseOf(id);
   }
 }
@@ -233,15 +308,16 @@ function iconId(id) {
 // ---------------------------------------------------------------- inventário
 function addItem(id, qty = 1) {
   const tool = def(id).kind === 'tool';
+  S.found[kindOf(id)] = true;
+  if (qualOf(id) === 2) S.flags.goldq = true;
   if (!tool) for (const it of S.inv) if (it && it.id === id) { it.qty += qty; UI.refresh(); return 0; }
   const i = S.inv.findIndex(v => !v);
   if (i < 0) { UI.refresh(); return qty; }
   S.inv[i] = { id, qty };
-  if (qualOf(id) === 2) S.flags.goldq = true;
   UI.refresh();
   return 0;
 }
-// Contagem/remoção pelo item base (qualquer qualidade); 'fish' vale qualquer peixe
+// Contagem/remoção pelo item base (qualquer qualidade); veja matches() para os grupos
 const countItem = want => S.inv.reduce((n, it) => n + (it && matches(it.id, want) ? it.qty : 0), 0);
 function removeItem(want, qty) {
   const slots = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && matches(o.it.id, want))
@@ -268,22 +344,26 @@ function expandFarm() {
   S.expanded = true;
   for (const k of Object.keys(S.objs)) if (S.objs[k].t === 'fence') delete S.objs[k];
 }
+function giveAll(list) {
+  for (const [id, q] of list || []) if (addItem(id, q)) { S.bin.push({ id, qty: q }); UI.toast(`🎒 Mochila cheia: ${nameOf(id)} foi para a Caixa de Envio.`); }
+}
 
 function addXP(n) {
-  if (S.level >= 10) return;
+  if (S.level >= MAX_LEVEL) return;
   S.xp += n;
-  while (S.level < 10 && S.xp >= xpNeed(S.level)) {
+  while (S.level < MAX_LEVEL && S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
     S.energy = Math.min(maxEnergy(), S.energy + 20);
+    S.hp = Math.min(maxHP(), S.hp + 20);
     Sound.play('level');
-    UI.toast(`⭐ Subiu para o nível ${S.level}! Energia máxima +5`);
+    UI.toast(`⭐ Subiu para o nível ${S.level}! Energia +5 e vida +3`);
   }
-  if (S.level >= 10) S.xp = 0;
+  if (S.level >= MAX_LEVEL) S.xp = 0;
 }
 
 function rollQuality(bonus = 0) {
-  const r = Math.random(), g = 0.02 + S.level * 0.012 + bonus, s = 0.1 + S.level * 0.025 + bonus;
+  const r = Math.random(), g = 0.02 + S.level * 0.01 + bonus, s = 0.1 + S.level * 0.02 + bonus;
   return r < g ? 2 : r < g + s ? 1 : 0;
 }
 
@@ -294,7 +374,7 @@ function burst(tx, ty, colors, n = 8, up = 40) {
       vy: -Math.random() * up - 10, life: 0.5 + Math.random() * 0.3, c: colors[i % colors.length], s: Math.random() < 0.5 ? 1 : 2 });
   }
 }
-function floatText(wx, wy, text, icon) { floaters.push({ x: wx, y: wy, text, icon, life: 1.2 }); }
+function floatText(wx, wy, text, icon, color) { floaters.push({ x: wx, y: wy, text, icon, color, life: 1.2 }); }
 
 // ---------------------------------------------------------------- ações com ferramentas
 function startAnim(anim, frames, frameDur, hitFrame, onHit) {
@@ -321,17 +401,17 @@ function lineTiles(n) {
 }
 
 function canTill(x, y) {
-  return inMap(x, y) && ground[y][x] === G_GRASS && !obj(x, y) && !structAt(x, y) && !farmTile(x, y) &&
-    !S.floor[key(x, y)] && !inPen(x, y) && !npcAt(x, y);
+  return scene !== 'mine' && inMap(x, y) && ground[y][x] === G_GRASS && !obj(x, y) && !structAt(x, y) && !farmTile(x, y) &&
+    !FLOOR[key(x, y)] && !inPen(x, y) && !npcAt(x, y);
 }
 
 function useHoe() {
-  if (!spend(S.tools.hoe >= 2 ? 3 : 2)) return;
+  if (!spend(1 + S.tools.hoe)) return;
   startAnim('hoe', 3, 0.11, 2, () => {
     let done = 0;
-    for (const [x, y] of lineTiles(S.tools.hoe >= 2 ? 3 : 1)) {
+    for (const [x, y] of lineTiles(HOE_TILES[S.tools.hoe])) {
       if (!canTill(x, y)) continue;
-      S.farm[key(x, y)] = newFarmTile(x, y);
+      FARM[key(x, y)] = newFarmTile(x, y);
       burst(x, y, ['#8f5d2e', '#6e4420', '#a8703c'], 7);
       done++;
     }
@@ -355,7 +435,7 @@ function useCan() {
   if (!spend(1)) return;
   startAnim('water', 3, 0.12, 2, () => {
     let any = false;
-    for (const [x, y] of lineTiles(S.tools.can >= 2 ? 3 : 1)) {
+    for (const [x, y] of lineTiles(CAN_TILES[S.tools.can])) {
       if (S.water <= 0) break;
       const ft = farmTile(x, y);
       burst(x, y, ['#4aa8f0', '#8ad0ff'], 6, 20);
@@ -368,7 +448,8 @@ function useCan() {
 }
 
 function pickupDecor(tx, ty, o) {
-  delete S.objs[key(tx, ty)];
+  if (MACHINES[o.t] && o.input) { UI.toast('Espere a máquina terminar antes de recolher.'); return; }
+  delete OBJS[key(tx, ty)];
   gain(PICKUP[o.t], 1, tx, ty);
   burst(tx, ty, ['#c89a62', '#8994a0'], 6);
   Sound.play('plant');
@@ -383,15 +464,15 @@ function useAxe() {
   startAnim('axe', 3, 0.11, 2, () => {
     const o2 = obj(tx, ty);
     if (!o2 || !['tree', 'stump', 'branch'].includes(o2.t)) { Sound.play('swing'); return; }
-    o2.hp -= S.tools.axe >= 2 ? 2 : 1;
+    o2.hp -= AXE_DMG[S.tools.axe];
     Sound.play('chop');
     burst(tx, ty, ['#c89a62', '#7a4c28', '#4caf3a'], 8);
     if (o2.hp > 0) return;
     if (o2.t === 'tree') {
-      S.objs[key(tx, ty)] = { t: 'stump', hp: HP.stump };
+      OBJS[key(tx, ty)] = { t: 'stump', hp: HP.stump };
       gain('wood', 4 + (Math.random() * 3 | 0), tx, ty); addXP(4);
     } else {
-      delete S.objs[key(tx, ty)];
+      delete OBJS[key(tx, ty)];
       gain('wood', o2.t === 'stump' ? 3 : 1, tx, ty); addXP(o2.t === 'stump' ? 3 : 1);
     }
   });
@@ -404,25 +485,43 @@ function usePick() {
   if (!spend(3)) return;
   startAnim('pick', 3, 0.11, 2, () => {
     const o = inMap(tx, ty) ? obj(tx, ty) : null;
-    if (o && ['rock', 'copper', 'iron'].includes(o.t)) {
-      o.hp -= S.tools.pick >= 2 ? 2 : 1;
+    if (o && isRock(o.t)) {
+      o.hp -= PICK_DMG[S.tools.pick];
       Sound.play('rock');
       burst(tx, ty, ['#bab6b0', '#76726c', '#d8d4ce'], 8);
       if (o.hp > 0) return;
-      delete S.objs[key(tx, ty)];
-      gain('stone', 1 + (Math.random() * 2 | 0), tx, ty);
-      if (o.t !== 'rock') { gain(o.t, 1, tx, ty); S.stats.ore++; addXP(10); } else addXP(3);
+      delete OBJS[key(tx, ty)];
+      breakRock(o, tx, ty);
       return;
     }
     const ft = inMap(tx, ty) ? farmTile(tx, ty) : null;
-    if (ft && !ft.crop_type) { delete S.farm[key(tx, ty)]; Sound.play('hoe'); burst(tx, ty, ['#6dbf3e', '#8f5d2e'], 6); return; }
-    if (inMap(tx, ty) && S.floor[key(tx, ty)] && !o) {
-      delete S.floor[key(tx, ty)];
+    if (ft && !ft.crop_type) { delete FARM[key(tx, ty)]; Sound.play('hoe'); burst(tx, ty, ['#6dbf3e', '#8f5d2e'], 6); return; }
+    if (inMap(tx, ty) && FLOOR[key(tx, ty)] && !o) {
+      delete FLOOR[key(tx, ty)];
       gain('stonepath', 1, tx, ty); Sound.play('rock');
       return;
     }
     Sound.play('swing');
   });
+}
+
+// Drops de pedras, minérios e gemas (na fazenda e na mina)
+function breakRock(o, tx, ty) {
+  if (o.t === 'rock') gain('stone', 1 + (Math.random() * 2 | 0), tx, ty);
+  if (o.t.startsWith('gem_')) {
+    gain(o.t.slice(4), 1, tx, ty); S.stats.ore++; addXP(15);
+    burst(tx, ty, ['#ffffff', '#c86ad8', '#8ad0ff'], 10, 50);
+  } else if (o.t !== 'rock') { gain(o.t, 1 + (S.tools.pick >= 3 && Math.random() < 0.3 ? 1 : 0), tx, ty); S.stats.ore++; addXP(o.t === 'gold' ? 14 : 10); }
+  else addXP(scene === 'mine' ? 2 : 3);
+  if (scene === 'mine') {
+    if (o.t === 'rock') {
+      const r = Math.random();
+      if (r < 0.006) gain('fossil', 1, tx, ty);
+      else if (mine.floor >= 15 && r < 0.01) gain('idol', 1, tx, ty);
+    }
+    mine.broken++;
+    maybeLadder(tx, ty, 0.06 + mine.broken / Math.max(1, mine.total) * 0.25);
+  }
 }
 
 function gain(id, qty, tx, ty) {
@@ -433,7 +532,7 @@ function gain(id, qty, tx, ty) {
 
 function pickDebris(tx, ty, o) {
   startAnim('harvest', 2, 0.12, 1, () => {
-    delete S.objs[key(tx, ty)];
+    delete OBJS[key(tx, ty)];
     if (o.t === 'branch') gain('wood', 1, tx, ty);
     if (o.t === 'weed' && Math.random() < 0.35) gain('hay', 1, tx, ty);
     burst(tx, ty, o.t === 'weed' ? ['#4f9a2c', '#7ad35c'] : ['#7a4c28', '#c89a62'], 6);
@@ -446,9 +545,9 @@ function plant(tx, ty, it) {
   if (!ft) { UI.toast('Use a enxada para arar a terra antes de plantar.'); return; }
   if (ft.crop_type) return;
   const crop = CROPS[def(it.id).crop];
-  if (!crop.seasons.includes(S.season)) {
+  if (scene !== 'gh' && !crop.seasons.includes(S.season)) {
     Sound.play('error');
-    UI.toast(S.season === 3 ? '❄️ Nada cresce no inverno. Espere a primavera!'
+    UI.toast(S.season === 3 ? '❄️ Nada cresce lá fora no inverno. Na estufa pode!'
       : `🌱 ${crop.name} só cresce no ${crop.seasons.map(s => SEASONS[s]).join(' e no ')}.`);
     return;
   }
@@ -463,8 +562,8 @@ function harvest(tx, ty) {
   const ft = farmTile(tx, ty), crop = CROPS[ft.crop_type];
   if (!S.inv.some(v => !v || baseOf(v.id) === crop.item)) { Sound.play('error'); UI.toast('🎒 Mochila cheia!'); return; }
   startAnim('harvest', 2, 0.13, 1, () => {
-    const qty = 1 + (Math.random() < S.level * 0.04 ? 1 : 0);
-    const id = withQ(crop.item, rollQuality());
+    const qty = 1 + (Math.random() < S.level * 0.03 ? 1 : 0);
+    const id = withQ(crop.item, rollQuality(S.perks.luck ? 0.04 : 0));
     gain(id, qty, tx, ty);
     if (qualOf(id)) floatText(tx * TS + 8, ty * TS - 10, qualOf(id) === 2 ? '★ Ouro!' : '★ Prata');
     addXP(crop.xp);
@@ -487,28 +586,30 @@ function clearDead(tx, ty) {
 function eat(i) {
   const it = S.inv[i];
   if (!it) return;
-  if (S.energy >= maxEnergy()) { UI.toast('Você já está com a energia cheia.'); return; }
-  const gainE = Math.min(energyOf(it.id), maxEnergy() - S.energy);
-  S.energy += gainE;
+  if (S.energy >= maxEnergy() && S.hp >= maxHP()) { UI.toast('Você já está com a energia e a vida cheias.'); return; }
+  const e = energyOf(it.id);
+  const gainE = Math.min(e, maxEnergy() - S.energy), gainH = Math.min(e, maxHP() - S.hp);
+  S.energy += gainE; S.hp += gainH;
   removeAt(i, 1);
   Sound.play('eat');
-  floatText(P.x, P.y - 30, `+${Math.round(gainE)} ❤️`);
+  floatText(P.x, P.y - 30, gainE > 0 ? `+${Math.round(gainE)} ⚡` : `+${Math.round(gainH)} ❤`, null, gainE > 0 ? null : '#ff6b8a');
 }
 
-// --- colocar decorações e aspersores
+// --- colocar decorações, aspersores e máquinas
 function placeItem(tx, ty) {
+  if (scene === 'mine') { UI.toast('Não dá para construir na mina.'); return; }
   const it = selItem(), d = def(it.id), k = key(tx, ty);
   const [px, py] = playerTile();
   const ft = inMap(tx, ty) ? farmTile(tx, ty) : null;
   let ok;
-  if (d.floor) ok = inMap(tx, ty) && ground[ty][tx] === G_GRASS && !obj(tx, ty) && !ft && !S.floor[k] && !structAt(tx, ty) && !npcAt(tx, ty);
+  if (d.floor) ok = inMap(tx, ty) && ground[ty][tx] === G_GRASS && !obj(tx, ty) && !ft && !FLOOR[k] && !structAt(tx, ty) && !npcAt(tx, ty);
   else ok = inMap(tx, ty) && !isBlocked(tx, ty) && [G_GRASS, G_PATH, G_STONE].includes(ground[ty][tx]) &&
     !(ft && ft.crop_type) && !(tx === px && ty === py);
   if (!ok) { Sound.play('error'); UI.toast('Não dá para colocar aqui.'); return; }
-  if (d.floor) S.floor[k] = d.floor;
+  if (d.floor) FLOOR[k] = d.floor;
   else {
-    if (ft) delete S.farm[k];
-    S.objs[k] = { t: d.place, hp: 1 };
+    if (ft) delete FARM[k];
+    OBJS[k] = { t: d.place, hp: 1 };
     if (d.place.startsWith('sprinkler')) S.flags.sprinkler = true;
   }
   removeAt(S.sel, 1);
@@ -517,13 +618,35 @@ function placeItem(tx, ty) {
   startAnim('harvest', 2, 0.08, null);
 }
 
+// --- máquinas artesanais
+const machineReady = o => o.input && absMin() >= o.readyAt;
+function loadMachine(o, slot) {
+  const it = S.inv[slot], M = MACHINES[o.t];
+  o.input = baseOf(it.id); o.out = M.out(it.id); o.readyAt = absMin() + M.hours * 60;
+  removeAt(slot, 1);
+  Sound.play('plant');
+  UI.toast(`${M.emoji} ${nameOf(o.out)} fica pronto em ${M.hours >= 24 ? `${M.hours / 24} dia(s)` : `${M.hours} horas`}.`);
+}
+function collectMachine(o, tx, ty) {
+  if (!hasRoom(o.out)) { UI.toast('🎒 Mochila cheia!'); return; }
+  gain(o.out, 1, tx, ty);
+  S.stats.artisan++;
+  addXP(8);
+  Sound.play('pop');
+  delete o.input; delete o.out; delete o.readyAt;
+}
+function machineLeft(o) {
+  const m = Math.max(0, o.readyAt - absMin());
+  return m >= 1440 ? `${Math.ceil(m / 1440)} dia(s)` : m >= 60 ? `${Math.ceil(m / 60)} hora(s)` : 'poucos minutos';
+}
+
 // --- pesca
 function startFishing(tx, ty) {
   if (!spend(4)) return;
   const bait = countItem('bait') > 0;
   if (bait) removeItem('bait', 1);
   startAnim('rod', 3, 0.13, 2, () => {
-    fishing = { state: 'wait', t: (1.5 + Math.random() * 3.5) * (bait ? 0.5 : 1), tx, ty, bait };
+    fishing = { state: 'wait', t: (1.5 + Math.random() * 3.5) * (bait ? 0.5 : 1) * (S.perks.rod ? 0.7 : 1), tx, ty, bait };
     Sound.play('splash');
     burst(tx, ty, ['#8ad0ff', '#e8f6ff'], 5, 25);
   });
@@ -531,21 +654,28 @@ function startFishing(tx, ty) {
 function reel() {
   if (!fishing) return;
   if (fishing.state === 'bite') {
-    const boost = fishing.bait ? { fish_tilapia: 1.6, fish_catfish: 2.5 } : {};
-    const pool = FISH.filter(f => S.level >= f.lvl).map(f => ({ ...f, w: f.w * (boost[f.id] || 1) }));
-    let w = pool.reduce((a, f) => a + f.w, 0) * Math.random(), pick = pool[0];
-    for (const f of pool) { w -= f.w; if (w <= 0) { pick = f; break; } }
-    const { tx, ty } = fishing;
+    const { tx, ty, bait } = fishing;
     fishing = null;
-    const id = withQ(pick.id, rollQuality(0.02));
+    let fishId;
+    const legendChance = S.level >= 6 ? 0.02 + (bait ? 0.04 : 0) + (S.perks.rod ? 0.04 : 0) : 0;
+    if (Math.random() < legendChance) fishId = LEGENDS[S.season];
+    else {
+      const boost = bait ? { fish_tilapia: 1.6, fish_catfish: 2.5 } : {};
+      const pool = FISH.filter(f => S.level >= f.lvl).map(f => ({ ...f, w: f.w * (boost[f.id] || 1) }));
+      let w = pool.reduce((a, f) => a + f.w, 0) * Math.random();
+      fishId = pool[0].id;
+      for (const f of pool) { w -= f.w; if (w <= 0) { fishId = f.id; break; } }
+    }
+    const id = withQ(fishId, rollQuality(0.02));
     if (!hasRoom(id)) { UI.toast('🎒 Mochila cheia! O peixe escapou.'); }
     else {
       gain(id, 1, tx, ty);
       S.stats.fish++;
-      if (pick.id === 'fish_catfish') S.flags.catfish = true;
-      addXP(8 + FISH.findIndex(f => f.id === pick.id) * 5);
-      Sound.play('pop');
-      UI.toast(`🎣 Você pescou: ${nameOf(id)}!`);
+      if (fishId === 'fish_catfish') S.flags.catfish = true;
+      const legend = LEGENDS.includes(fishId);
+      addXP(legend ? 80 : 8 + FISH.findIndex(f => f.id === fishId) * 5);
+      Sound.play(legend ? 'level' : 'pop');
+      UI.toast(legend ? `🐉 LENDÁRIO! Você pescou: ${nameOf(id)}!` : `🎣 Você pescou: ${nameOf(id)}!`);
     }
   } else {
     fishing = null;
@@ -568,15 +698,23 @@ function updateFishing(dt) {
 }
 
 // ---------------------------------------------------------------- animais
-const animalsOut = () => S.time < ANIMALS_IN && S.weather !== 'snow';
+const animalsOut = () => scene === 'farm' && S.time < ANIMALS_IN && S.weather !== 'snow';
 const animalHouse = type => (type === 'chicken' ? COOP : BARN);
+
+function clearArea(b, extra) {
+  const clr = (x, y) => {
+    const k = key(x, y), o = S.objs[k];
+    if (o && o.t !== 'pine') { if (PICKUP[o.t]) giveAll([[PICKUP[o.t], 1]]); delete S.objs[k]; }
+    delete S.farm[k]; delete S.floor[k];
+  };
+  for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) clr(x, y);
+  if (extra) for (let y = extra.y0; y <= extra.y1; y++) for (let x = extra.x0; x <= extra.x1; x++) clr(x, y);
+}
 
 function buildAnimalHouse(which) {
   S[which] = true;
   const b = which === 'coop' ? COOP : BARN;
-  const clear = (x, y) => { const k = key(x, y); if (obj(x, y) && obj(x, y).t !== 'pine') delete S.objs[k]; delete S.farm[k]; delete S.floor[k]; };
-  for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) clear(x, y);
-  for (let y = b.pen.y0; y <= b.pen.y1; y++) for (let x = b.pen.x0; x <= b.pen.x1; x++) clear(x, y);
+  clearArea(b, b.pen);
   UI.toast(`🔨 ${which === 'coop' ? 'Galinheiro' : 'Estábulo'} construído a oeste da casa!`);
 }
 
@@ -596,6 +734,7 @@ function spawnAnimal(a) {
 }
 
 function updateAnimals(dt) {
+  if (scene !== 'farm') return;
   for (const a of S.animals) {
     let r = animRT[a.id];
     if (!r) { spawnAnimal(a); r = animRT[a.id]; }
@@ -641,7 +780,7 @@ function collectProduct(a) {
   if (!hasRoom(a.ready)) { UI.toast('🎒 Mochila cheia!'); return false; }
   const r = animRT[a.id];
   addItem(a.ready, 1);
-  if (r) floatText(r.x, r.y - 20, '+1', baseOf(a.ready));
+  if (r && scene === 'farm') floatText(r.x, r.y - 20, '+1', baseOf(a.ready));
   a.ready = null;
   addXP(5);
   Sound.play('pop');
@@ -707,10 +846,10 @@ function giftTo(id, slot) {
   const it = S.inv[slot];
   if (!it || def(it.id).kind === 'tool') return null;
   if (S.gifted[id]) return 'Você já me deu um presente hoje. Obrigado(a)!';
-  const b = baseOf(it.id), N = NPCS[id];
+  const b = kindOf(it.id), N = NPCS[id], kind = def(it.id).kind;
   let pts = 20, msg = 'Oh, obrigado(a)!';
-  if (N.loves.includes(b)) { pts = 80; msg = 'EU AMEI! Como você sabia?! 😍'; }
-  else if (N.likes.includes(b)) { pts = 45; msg = 'Que gentil! Gostei muito. 😊'; }
+  if (N.loves.includes(b) || (kind === 'gem' && id !== 'ze') || LEGENDS.includes(b)) { pts = 80; msg = 'EU AMEI! Como você sabia?! 😍'; }
+  else if (N.likes.includes(b) || kind === 'artisan') { pts = 45; msg = 'Que gentil! Gostei muito. 😊'; }
   else if (N.hates.includes(b)) { pts = -30; msg = 'Hm... isso não é muito a minha cara. 😕'; }
   pts += qualOf(it.id) * 10;
   removeAt(slot, 1);
@@ -727,9 +866,12 @@ function genQuest() {
   pool.push(['fish', 1, 3], ['copper', 3, 8], ['iron', 2, 5], ['wood', 20, 40], ['stone', 15, 30]);
   if (S.animals.some(a => a.type === 'chicken')) pool.push(['egg', 2, 5]);
   if (S.animals.some(a => a.type === 'cow')) pool.push(['milk', 1, 3]);
+  if (S.mineMax >= 10) pool.push(['gold', 2, 5], ['slime', 10, 25]);
+  if (S.mineMax >= 5) pool.push(['amethyst', 1, 2]);
+  if (Object.values(S.objs).some(o => MACHINES[o.t])) pool.push(['juice', 1, 2], ['jam', 1, 3]);
   const [item, mn, mx] = pickOne(pool);
   const qty = mn + (Math.random() * (mx - mn + 1) | 0);
-  const unit = item === 'fish' ? 50 : Math.max(6, ITEMS[item].sell);
+  const unit = item === 'fish' ? 50 : item === 'juice' || item === 'jam' ? 200 : Math.max(6, ITEMS[item].sell);
   return { id: S.nextId++, item, qty, reward: Math.round((unit * qty * 1.8 + 60) / 10) * 10, days: 3 + (Math.random() * 4 | 0), from: pickOne(Object.keys(NPCS)) };
 }
 
@@ -744,6 +886,71 @@ function deliverQuest(qid) {
   addXP(15);
   Sound.play('coin');
   return true;
+}
+
+// ---------------------------------------------------------------- projetos do vale
+const bundleState = id => S.bundles[id] || (S.bundles[id] = { got: {}, done: false });
+const bundleNeed = (b, i) => b.items[i][1] - (bundleState(b.id).got[i] || 0);
+// Doa o que tiver de um item da cesta; devolve quantos foram doados
+function donate(bid, i) {
+  const b = BUNDLES.find(x => x.id === bid), st = bundleState(bid);
+  if (st.done) return 0;
+  const n = Math.min(countItem(b.items[i][0]), bundleNeed(b, i));
+  if (n <= 0) return 0;
+  removeItem(b.items[i][0], n);
+  st.got[i] = (st.got[i] || 0) + n;
+  Sound.play('coin');
+  if (b.items.every((_, j) => bundleNeed(b, j) <= 0)) completeBundle(b);
+  return n;
+}
+function completeBundle(b) {
+  bundleState(b.id).done = true;
+  S.gold += b.gold;
+  giveAll(b.give);
+  if (b.perk) S.perks[b.perk] = true;
+  if (b.perk === 'miner') S.hp = maxHP();
+  Sound.play('level');
+  UI.toast(`${b.icon} ${b.name} completa! +${b.gold} 💰${b.perkDesc ? ' · ' + b.perkDesc : ''}`);
+  if (b.gh && !S.greenhouse && BUNDLES.filter(x => x.gh).every(x => bundleState(x.id).done)) {
+    S.greenhouse = true;
+    clearArea(GH_B, { x0: GH_B.door.x, y0: GH_B.door.y + 1, x1: GH_B.door.x, y1: GH_B.door.y + 1 });
+    UI.toast('🏡 A ESTUFA foi restaurada! Lá dentro você planta qualquer semente em qualquer estação.');
+  }
+  if (!S.ending && BUNDLES.every(x => bundleState(x.id).done)) {
+    S.ending = true;
+    S.gold += 10000;
+    setTimeout(() => UI.ending(), 400);
+  }
+}
+
+// ---------------------------------------------------------------- avaliação do vovô
+function evaluate() {
+  const st = S.stats, done = BUNDLES.filter(b => bundleState(b.id).done).length;
+  const col = COLLECTION.filter(i => S.found[i]).length / COLLECTION.length;
+  const rows = [
+    ['💰 Dinheiro ganho', st.earned >= 1e6 ? 3 : st.earned >= 2e5 ? 2 : st.earned >= 5e4 ? 1 : 0, 3],
+    ['📚 Coleção', col >= 1 ? 2 : col >= 0.5 ? 1 : 0, 2],
+    ['💞 Amigos com 8♥', Object.keys(NPCS).filter(id => hearts(id) >= 8).length, 3],
+    ['🧺 Projetos do Vale', done === BUNDLES.length ? 2 : done >= 4 ? 1 : 0, 2],
+    ['🐔 5+ animais', S.animals.length >= 5 ? 1 : 0, 1],
+    ['⭐ Nível', S.level >= 20 ? 2 : S.level >= 15 ? 1 : 0, 2],
+    ['⛏️ Fundo da mina', S.mineMax >= MINE_DEPTH ? 1 : 0, 1],
+    ['🏡 Estufa', S.greenhouse ? 1 : 0, 1],
+  ];
+  const total = rows.reduce((a, r) => a + r[1], 0);
+  const candles = total >= 12 ? 4 : total >= 8 ? 3 : total >= 4 ? 2 : 1;
+  return { rows, total, candles };
+}
+const evalKey = () => `${S.year}-${S.season}`;
+function doEvaluation() {
+  const ev = evaluate();
+  S.evalKey = evalKey();
+  S.lastEval = ev;
+  let reward = null;
+  if (ev.candles >= 4 && S.bestCandles < 4) { reward = 'statue'; giveAll([['statue', 1]]); }
+  S.bestCandles = Math.max(S.bestCandles, ev.candles);
+  Sound.play(ev.candles >= 3 ? 'level' : 'coin');
+  return { ...ev, reward };
 }
 
 // ---------------------------------------------------------------- festivais
@@ -775,16 +982,216 @@ function festLanterns() {
   Sound.play('level');
   return true;
 }
-const lanternNight = () => festivalToday() && S.season === 3 && S.time >= 18 * 60;
+const lanternNight = () => scene === 'farm' && festivalToday() && S.season === 3 && S.time >= 18 * 60;
 
-// ---------------------------------------------------------------- conquistas
+// ---------------------------------------------------------------- conquistas e coleção
 function checkAch() {
+  const pct = COLLECTION.filter(i => S.found[i]).length / COLLECTION.length * 100;
+  for (const r of COLLECTION_REWARDS) {
+    if (S.colRewards[r.pct] || pct < r.pct) continue;
+    S.colRewards[r.pct] = true;
+    S.gold += r.gold;
+    giveAll(r.items);
+    Sound.play('level');
+    UI.toast(`📚 Coleção ${r.pct}% completa! Recompensa recebida${r.gold ? `: ${r.gold} 💰` : '!'}`);
+    return;
+  }
   for (const a of ACHIEVEMENTS) {
     if (S.ach[a.id] || !a.test(S)) continue;
     S.ach[a.id] = true;
     Sound.play('level');
     UI.toast(`🏆 Conquista: ${a.name}!`);
     return; // uma por vez para não empilhar avisos
+  }
+}
+
+// ---------------------------------------------------------------- cenas: estufa e mina
+function transition(fn) {
+  if (transitioning) return;
+  transitioning = true;
+  UI.fade(true, () => { fn(); UI.fade(false); setTimeout(() => { transitioning = false; }, 300); });
+}
+function enterGreenhouse() { transition(() => setScene('gh', 5 * TS + 8, 8 * TS + 12, 1)); }
+function exitGreenhouse() { transition(() => setScene('farm', GH_B.door.x * TS + 8, (GH_B.door.y + 1) * TS + 12, 0)); }
+
+function enterMine(floor) {
+  if (!S.inv.some(it => it && it.id === 'sword')) {
+    if (addItem('sword', 1)) { UI.toast('🎒 Abra espaço na mochila: o Tião quer te dar uma espada!'); return; }
+    UI.toast('⚔️ Tião: "Leve esta espada, a mina tem monstros!"');
+  }
+  transition(() => {
+    genMineFloor(floor);
+    setScene('mine', mine.spawn.x, mine.spawn.y, 0);
+    S.mineMax = Math.max(S.mineMax, floor);
+    Sound.play('rock');
+  });
+}
+function leaveMine() {
+  transition(() => { mine = null; setScene('farm', MINE_ENT.door.x * TS + 8, (MINE_ENT.door.y + 1) * TS + 12, 0); });
+}
+// Andares disponíveis no elevador da entrada
+const elevatorFloors = () => {
+  const out = [1];
+  for (let f = 2; f <= S.mineMax; f++) if (f % 5 === 0 || S.perks.miner) out.push(f);
+  return out;
+};
+
+function mineRock(n, r) {
+  const v = r();
+  const table = [
+    ['gem_diamond', n >= 30 ? 0.01 : 0], ['gem_ruby', n >= 20 ? 0.015 : 0], ['gem_emerald', n >= 10 ? 0.015 : 0], ['gem_amethyst', 0.02],
+    ['gold', n < 10 ? 0 : n < 20 ? 0.04 : n < 30 ? 0.1 : 0.14],
+    ['iron', n < 10 ? 0.04 : n < 20 ? 0.14 : 0.1],
+    ['copper', n < 10 ? 0.18 : n < 20 ? 0.1 : 0.05],
+  ];
+  let acc = 0;
+  for (const [t, p] of table) { acc += p; if (v < acc) return { t, hp: t.startsWith('gem_') ? HP.gem : HP[t] }; }
+  return { t: 'rock', hp: n >= 20 ? 3 : 2 };
+}
+
+function genMineFloor(n) {
+  const W = 30, H = 22, r = rng(n * 7919 + dayIndex() * 104729 + 17);
+  const g = [];
+  for (let y = 0; y < H; y++) g.push(Array.from({ length: W }, (_, x) => (x < 1 || y < 2 || x >= W - 1 || y >= H - 1 ? G_WALL : G_CAVE)));
+  const blobs = 5 + (r() * 6 | 0);
+  for (let i = 0; i < blobs; i++) {
+    const cx = 3 + r() * (W - 6), cy = 5 + r() * (H - 8), rx = 1 + r() * 3, ry = 1 + r() * 2.2;
+    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+      if (x > 0 && y > 1 && x < W - 1 && y < H - 1 && ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) g[y][x] = G_WALL;
+    }
+  }
+  const sx = 3 + (r() * (W - 6) | 0), sy = 2;
+  for (let y = sy; y <= sy + 3; y++) g[y][sx] = G_CAVE;
+  // tudo que não é alcançável a partir da entrada vira parede
+  const dist = new Map([[key(sx, sy + 1), 0]]), q = [[sx, sy + 1]];
+  while (q.length) {
+    const [x, y] = q.shift(), d = dist.get(key(x, y));
+    for (const [dx, dy] of DIRV) {
+      const nx = x + dx, ny = y + dy, k = key(nx, ny);
+      if (g[ny] && g[ny][nx] === G_CAVE && !dist.has(k)) { dist.set(k, d + 1); q.push([nx, ny]); }
+    }
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (g[y][x] === G_CAVE && !dist.has(key(x, y)) && !(x === sx && y === sy)) g[y][x] = G_WALL;
+  const objs = { [key(sx, sy)]: { t: 'ladder_up', hp: 999 } };
+  const cells = [...dist.entries()].map(([k, d]) => [...k.split(',').map(Number), d]);
+  const far = cells.filter(c => c[2] > 6).sort(() => r() - 0.5);
+  let ladder = false;
+  if (n % 10 === 0 && !S.mineChests[n] && far.length) { const [x, y] = far.pop(); objs[key(x, y)] = { t: 'chest', hp: 999 }; }
+  if (n % 10 === 0 && n < MINE_DEPTH && far.length) { const [x, y] = far.pop(); objs[key(x, y)] = { t: 'ladder_down', hp: 999 }; ladder = true; }
+  let total = 0;
+  for (const [x, y, d] of cells) {
+    if (d <= 2 || objs[key(x, y)] || r() > 0.32) continue;
+    objs[key(x, y)] = mineRock(n, r); total++;
+  }
+  const monsters = [], tier = n >= 30 ? 'red' : n >= 15 ? 'blue' : 'green';
+  const count = Math.min(10, 3 + Math.floor(n / 4));
+  const freeFar = far.filter(([x, y]) => !objs[key(x, y)]);
+  for (let i = 0; i < count && freeFar.length; i++) {
+    const [x, y] = freeFar.pop();
+    const type = r() < 0.75 ? tier : (tier === 'red' ? 'blue' : 'green');
+    monsters.push({ type, x: x * TS + 8, y: y * TS + 10, hp: SLIMES[type].hp, t: r() * 5, hurt: 0, kb: null, wt: 0, wa: 0 });
+  }
+  mine = { floor: n, w: W, h: H, ground: g, objs, monsters, total, broken: 0, ladder, spawn: { x: sx * TS + 8, y: (sy + 1) * TS + 12 } };
+}
+
+function maybeLadder(tx, ty, chance) {
+  if (!mine || mine.ladder || mine.floor >= MINE_DEPTH) return;
+  const left = Object.values(mine.objs).filter(o => isRock(o.t)).length;
+  if (Math.random() < chance || left <= 2) {
+    if (obj(tx, ty)) return;
+    OBJS[key(tx, ty)] = { t: 'ladder_down', hp: 999 };
+    mine.ladder = true;
+    Sound.play('bite');
+    floatText(tx * TS + 8, ty * TS, 'Escada!');
+  }
+}
+
+function nextFloor() {
+  const n = mine.floor + 1;
+  transition(() => {
+    genMineFloor(n);
+    setScene('mine', mine.spawn.x, mine.spawn.y, 0);
+    S.mineMax = Math.max(S.mineMax, n);
+    if (n % 5 === 0) UI.toast(`🛗 Andar ${n}: o elevador da entrada agora vem até aqui!`);
+    if (n === MINE_DEPTH) UI.toast('💎 Você chegou ao FUNDO DA MINA!');
+  });
+}
+
+function openChest(tx, ty) {
+  const rw = MINE_CHESTS[mine.floor];
+  OBJS[key(tx, ty)] = { t: 'chest_open', hp: 999 };
+  S.mineChests[mine.floor] = true;
+  if (!rw) return;
+  S.gold += rw.gold;
+  if (rw.sword && S.tools.sword < rw.sword) S.tools.sword = rw.sword;
+  giveAll(rw.items);
+  Sound.play('level');
+  burst(tx, ty, ['#ffe14a', '#ffffff', '#f2c230'], 16, 70);
+  UI.toast(`🎁 Baú do andar ${mine.floor}: +${rw.gold} 💰${rw.sword ? ` e ${UPGRADES.find(u => u.id === 'sword' + rw.sword).name}` : ''}!`);
+}
+
+// --- combate
+function useSword() {
+  startAnim('sword', 3, 0.08, 1, () => {
+    const v = DIRV[P.dir], hx = P.x + v[0] * 14, hy = P.y - 6 + v[1] * 14;
+    let hit = false;
+    if (mine) for (const m of mine.monsters) {
+      if (m.hp <= 0 || Math.hypot(m.x - hx, m.y - hy) > 16) continue;
+      hit = true;
+      m.hp -= SWORD_DMG[S.tools.sword];
+      m.hurt = 0.25;
+      m.kb = { x: v[0] * 90, y: v[1] * 90, t: 0.15 };
+      floatText(m.x, m.y - 14, `-${SWORD_DMG[S.tools.sword]}`, null, '#ffe14a');
+      if (m.hp <= 0) killMonster(m);
+    }
+    if (mine) mine.monsters = mine.monsters.filter(m => m.hp > 0);
+    Sound.play(hit ? 'chop' : 'swing');
+  });
+}
+function killMonster(m) {
+  const T = SLIMES[m.type], tx = Math.floor(m.x / TS), ty = Math.floor(m.y / TS);
+  burst(tx, ty, T.color, 14, 50);
+  Sound.play('pop');
+  S.stats.kills++;
+  addXP(T.xp);
+  if (Math.random() < 0.7) gain('slime', 1 + (m.type === 'red' ? 1 : 0), tx, ty);
+  if (Math.random() < 0.08) gain(mine.floor >= 20 ? 'gold' : mine.floor >= 10 ? 'iron' : 'copper', 1, tx, ty);
+  if (Math.random() < 0.03) gain(pickOne(GEMS.slice(0, 1 + Math.min(3, Math.floor(mine.floor / 10)))), 1, tx, ty);
+  maybeLadder(tx, ty, 0.12);
+}
+function hurtPlayer(dmg, dx, dy, d) {
+  S.hp = Math.max(0, S.hp - dmg);
+  P.invuln = 1;
+  const nx = P.x + dx / (d || 1) * 14, ny = P.y + dy / (d || 1) * 14;
+  if (!boxBlocked(nx, P.y)) P.x = nx;
+  if (!boxBlocked(P.x, ny)) P.y = ny;
+  fishing = null;
+  Sound.play('error');
+  floatText(P.x, P.y - 34, `-${dmg}`, null, '#ff5050');
+  if (S.hp <= 0) {
+    UI.toast('😵 Você desmaiou na mina! Alguém te levou para casa...');
+    sleep(true);
+  }
+}
+function updateMonsters(dt) {
+  if (scene !== 'mine' || !mine) return;
+  P.invuln = Math.max(0, P.invuln - dt);
+  const solid = (x, y) => isBlocked(Math.floor(x / TS), Math.floor(y / TS));
+  for (const m of mine.monsters) {
+    const T = SLIMES[m.type];
+    m.t += dt; m.hurt = Math.max(0, m.hurt - dt);
+    const dx = P.x - m.x, dy = (P.y - 4) - m.y, d = Math.hypot(dx, dy);
+    let vx = 0, vy = 0;
+    if (m.kb) { vx = m.kb.x; vy = m.kb.y; m.kb.t -= dt; if (m.kb.t <= 0) m.kb = null; }
+    else if (d < 100) { const sp = T.speed * (0.4 + 0.8 * Math.abs(Math.sin(m.t * 4))); vx = dx / d * sp; vy = dy / d * sp; }
+    else {
+      if ((m.wt -= dt) <= 0) { m.wa = Math.random() * Math.PI * 2; m.wt = 1 + Math.random() * 2; }
+      vx = Math.cos(m.wa) * 10; vy = Math.sin(m.wa) * 10;
+    }
+    const nx = m.x + vx * dt, ny = m.y + vy * dt;
+    if (!solid(nx, m.y)) m.x = nx; else m.wa += Math.PI;
+    if (!solid(m.x, ny)) m.y = ny; else m.wa += Math.PI;
+    if (d < 10 && P.invuln <= 0 && !transitioning && !sleeping) { hurtPlayer(T.dmg, dx, dy, d); if (sleeping) return; }
   }
 }
 
@@ -796,10 +1203,13 @@ function resolveAction() {
   if (st === HOUSE && tx === HOUSE.door.x && ty === HOUSE.door.y) return { emoji: '🏠', label: 'Casa', run: () => UI.openHouse() };
   if (st === BIN) return { emoji: '📦', label: 'Enviar', run: () => UI.openBin() };
   if (st === STALL && ty === STALL.y + STALL.h - 1) return { emoji: '🛒', label: 'Loja', run: () => UI.openNPC('rosa') };
-  if (st === BOARD) return { emoji: '📋', label: 'Pedidos', run: () => UI.openBoard() };
+  if (st === BOARD) return { emoji: '📋', label: 'Quadro', run: () => UI.openBoard() };
+  if (st === ALTAR) return { emoji: '🕯️', label: 'Santuário', run: () => UI.openAltar() };
   if (st === COOP) return { emoji: '🐔', label: 'Galinheiro', run: () => UI.openAnimals('chicken') };
   if (st === BARN) return { emoji: '🐄', label: 'Estábulo', run: () => UI.openAnimals('cow') };
   if (st === FEST) return { emoji: '🎪', label: 'Festival', run: () => UI.openFestival() };
+  if (st === MINE_ENT) return { emoji: '⛏️', label: 'Mina', run: () => UI.openMine() };
+  if (st === GH_B) return { emoji: '🏡', label: 'Estufa', run: enterGreenhouse };
   const npc = inMap(tx, ty) ? npcAt(tx, ty) : null;
   if (npc) return { emoji: '💬', label: NPCS[npc].name.split(' ').pop(), run: () => UI.openNPC(npc) };
   const an = animalAt(tx, ty);
@@ -813,10 +1223,21 @@ function resolveAction() {
     if (ft.growth_stage >= 4) return { emoji: '🖐️', label: 'Colher', run: () => harvest(tx, ty) };
   }
   const o = inMap(tx, ty) ? obj(tx, ty) : null;
-  if (o && (o.t === 'weed' || o.t === 'branch')) {
-    return { emoji: '🖐️', label: o.t === 'weed' ? 'Arrancar' : 'Pegar', run: () => pickDebris(tx, ty, o) };
-  }
   const it = selItem();
+  if (o) {
+    if (o.t === 'weed' || o.t === 'branch') return { emoji: '🖐️', label: o.t === 'weed' ? 'Arrancar' : 'Pegar', run: () => pickDebris(tx, ty, o) };
+    if (o.t === 'ladder_down') return { emoji: '🪜', label: 'Descer', run: nextFloor };
+    if (o.t === 'ladder_up') return { emoji: '🪜', label: 'Sair', run: leaveMine };
+    if (o.t === 'chest') return { emoji: '🎁', label: 'Abrir', run: () => openChest(tx, ty) };
+    if (o.t === 'statue' && o.ready) return { icon: o.ready, label: 'Coletar', run: () => { gain(o.ready, 1, tx, ty); o.ready = null; Sound.play('pop'); } };
+    if (MACHINES[o.t] && !(it && it.id === 'pick' && !o.input)) {
+      const M = MACHINES[o.t];
+      if (machineReady(o)) return { icon: o.out, label: 'Coletar', run: () => collectMachine(o, tx, ty) };
+      if (o.input) return { emoji: '⏳', label: 'Fazendo', run: () => UI.toast(`${M.emoji} ${nameOf(o.out)}: pronto em ${machineLeft(o)}.`) };
+      if (it && M.accepts(it.id)) return { icon: baseOf(it.id), label: 'Colocar', run: () => loadMachine(o, S.sel) };
+      return { emoji: M.emoji, label: ITEMS[o.t].name.split(' ')[0], run: () => UI.toast(`${M.emoji} ${M.hint}`) };
+    }
+  }
   if (!it) return { emoji: '🖐️', label: 'Mão', run: null };
   const d = def(it.id);
   const water = inMap(tx, ty) && ground[ty][tx] === G_WATER;
@@ -825,16 +1246,17 @@ function resolveAction() {
     case 'can': return { icon: iconId('can'), label: water ? 'Encher' : 'Regar', run: useCan };
     case 'axe': return { icon: iconId('axe'), label: o && o.t === 'pfence' ? 'Recolher' : 'Cortar', run: useAxe };
     case 'pick': return { icon: iconId('pick'), label: o && PICKUP[o.t] ? 'Recolher' : 'Quebrar', run: usePick };
+    case 'sword': return { icon: iconId('sword'), label: 'Atacar', run: useSword };
     case 'rod': return { icon: 'rod', label: 'Pescar', run: water ? () => startFishing(tx, ty) : () => UI.toast('Fique de frente para a água para pescar 🎣') };
   }
   if (d.kind === 'seed') return { icon: baseOf(it.id), label: 'Plantar', run: () => plant(tx, ty, it) };
   if (d.kind === 'place') return { icon: baseOf(it.id), label: 'Colocar', run: () => placeItem(tx, ty) };
-  if (d.energy) return { emoji: '🍽️', label: 'Comer', run: () => eat(S.sel) };
+  if (energyOf(it.id)) return { emoji: '🍽️', label: 'Comer', run: () => eat(S.sel) };
   return { icon: baseOf(it.id), label: d.name, run: null };
 }
 
 // Ações que se repetem enquanto o botão fica pressionado
-const REPEATABLE = new Set(['Arar', 'Regar', 'Cortar', 'Quebrar', 'Colher', 'Arrancar', 'Pegar', 'Limpar']);
+const REPEATABLE = new Set(['Arar', 'Regar', 'Cortar', 'Quebrar', 'Colher', 'Arrancar', 'Pegar', 'Limpar', 'Atacar']);
 
 function doAction() {
   if (isPaused() || P.busy) return;
@@ -850,8 +1272,38 @@ function stageFor(ft) {
   return 1 + Math.floor(ft.days_planted * 3 / c.days);
 }
 
+// Tiles cobertos pelos aspersores (3x3 cobre, 5x5 ferro, 7x7 ouro)
+function sprinklerTiles(objs) {
+  const out = new Set();
+  for (const [k, o] of Object.entries(objs)) {
+    const r = SPRINKLER_R[o.t];
+    if (!r) continue;
+    const [x, y] = k.split(',').map(Number);
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) out.add(key(x + dx, y + dy));
+  }
+  return out;
+}
+
+// Crescimento de uma área de plantio (fazenda ou estufa)
+function growFarm(farm, objs, inside, report) {
+  const sprinkled = sprinklerTiles(objs);
+  for (const k of Object.keys(farm)) {
+    const ft = farm[k];
+    if (ft.crop_type && !ft.dead) {
+      if (ft.is_watered) { ft.days_planted++; ft.dry_days = 0; }
+      else if (++ft.dry_days >= 3) { ft.dead = true; ft.growth_stage = 5; report.died++; }
+      if (!ft.dead) ft.growth_stage = stageFor(ft);
+    } else if (!inside && !ft.crop_type && !ft.is_watered && !sprinkled.has(k) && Math.random() < 0.08) {
+      delete farm[k];
+      continue;
+    }
+    ft.is_watered = false;
+  }
+  return sprinkled;
+}
+
 function nextDay(passedOut) {
-  const report = { sales: [], total: 0, passedOut, lost: 0, died: 0, products: 0, expired: 0 };
+  const report = { sales: [], total: 0, passedOut, lost: 0, died: 0, products: 0, expired: 0, inMine: scene === 'mine' };
   // venda da Caixa de Envio
   for (const it of S.bin) {
     const price = sellOf(it.id) * it.qty;
@@ -862,20 +1314,8 @@ function nextDay(passedOut) {
   S.gold += report.total;
   S.stats.earned += report.total;
 
-  // crescimento das plantas (terra vazia no alcance de aspersor nunca volta a ser grama)
-  const sprinkled = sprinklerTiles();
-  for (const k of Object.keys(S.farm)) {
-    const ft = S.farm[k];
-    if (ft.crop_type && !ft.dead) {
-      if (ft.is_watered) { ft.days_planted++; ft.dry_days = 0; }
-      else if (++ft.dry_days >= 3) { ft.dead = true; ft.growth_stage = 5; report.died++; }
-      if (!ft.dead) ft.growth_stage = stageFor(ft);
-    } else if (!ft.crop_type && !ft.is_watered && !sprinkled.has(k) && Math.random() < 0.08) {
-      delete S.farm[k];
-      continue;
-    }
-    ft.is_watered = false;
-  }
+  const sprFarm = growFarm(S.farm, S.objs, false, report);
+  const sprGh = growFarm(S.ghFarm, S.ghObjs, true, report);
 
   // animais: produzem se foram alimentados
   for (const a of S.animals) {
@@ -895,7 +1335,7 @@ function nextDay(passedOut) {
   if (S.day > DAYS_PER_SEASON) {
     S.day = 1;
     S.season = (S.season + 1) % 4;
-    if (S.season === 0) S.year++;
+    if (S.season === 0) { S.year++; if (S.year === 2) report.altar = true; }
     report.newSeason = SEASONS[S.season];
     for (const ft of Object.values(S.farm)) {
       if (ft.crop_type && !ft.dead && !CROPS[ft.crop_type].seasons.includes(S.season)) { ft.dead = true; ft.growth_stage = 5; report.died++; }
@@ -906,7 +1346,13 @@ function nextDay(passedOut) {
   if (S.weather === 'rain') for (const ft of Object.values(S.farm)) ft.is_watered = true;
 
   // aspersores regam toda manhã
-  for (const k of sprinkled) if (S.farm[k]) S.farm[k].is_watered = true;
+  for (const k of sprFarm) if (S.farm[k]) S.farm[k].is_watered = true;
+  for (const k of sprGh) if (S.ghFarm[k]) S.ghFarm[k].is_watered = true;
+
+  // estátua do vovô: uma gema por dia
+  for (const o of [...Object.values(S.objs), ...Object.values(S.ghObjs)]) {
+    if (o.t === 'statue' && !o.ready) { const r = Math.random(); o.ready = r < 0.08 ? 'diamond' : r < 0.25 ? 'ruby' : r < 0.5 ? 'emerald' : 'amethyst'; }
+  }
 
   // pedidos do quadro
   for (const q of S.quests) q.days--;
@@ -918,6 +1364,8 @@ function nextDay(passedOut) {
   if (festivalToday()) report.festival = FESTIVALS[S.season];
   else if (S.day === FESTIVAL_DAY - 1) report.festivalTomorrow = FESTIVALS[S.season];
 
+  mine = null;
+  setScene('farm');
   spawnDebris();
   refillQuarry();
 
@@ -926,23 +1374,13 @@ function nextDay(passedOut) {
     S.gold -= report.lost;
     S.energy = Math.round(maxEnergy() * 0.6);
   } else S.energy = maxEnergy();
+  S.hp = maxHP();
   S.time = DAY_START;
-  P.x = WAKE.x; P.y = WAKE.y; P.dir = 0; P.anim = 'idle'; P.busy = false; P.path = null;
-  fishing = null;
+  setScene('farm', WAKE.x, WAKE.y, 0);
+  P.invuln = 0;
   animRT = {};
   save();
   return report;
-}
-
-// Tiles cobertos pelos aspersores (3x3 o de cobre, 5x5 o de ferro)
-function sprinklerTiles() {
-  const out = new Set();
-  for (const [k, o] of Object.entries(S.objs)) {
-    if (o.t !== 'sprinkler' && o.t !== 'sprinkler2') continue;
-    const [x, y] = k.split(',').map(Number), r = o.t === 'sprinkler2' ? 2 : 1;
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) out.add(key(x + dx, y + dy));
-  }
-  return out;
 }
 
 function spawnDebris() {
@@ -964,9 +1402,8 @@ function spawnDebris() {
 function refillQuarry() {
   const r = Math.random;
   for (let y = QUARRY.y0; y <= QUARRY.y1; y++) for (let x = QUARRY.x0; x <= QUARRY.x1; x++) {
-    if (ground[y][x] !== G_STONE || obj(x, y)) continue;
-    const [px, py] = playerTile();
-    if (x === px && y === py) continue;
+    if (farmGround[y][x] !== G_STONE || S.objs[key(x, y)] || structAt(x, y)) continue;
+    if (x === MINE_ENT.door.x && y === MINE_ENT.door.y + 1) continue;
     if (r() < 0.12) { const t = oreRoll(r, S.tools.pick); S.objs[key(x, y)] = { t, hp: HP[t] }; }
   }
 }
@@ -983,7 +1420,12 @@ function sleep(passedOut) {
 
 function save() {
   try {
-    if (P) { S.px = P.x; S.py = P.y; S.dir = P.dir; }
+    if (P) {
+      // fora da fazenda, o jogo salva a posição da porta da cena
+      if (scene === 'farm') { S.px = P.x; S.py = P.y; S.dir = P.dir; }
+      else if (scene === 'gh') { S.px = GH_B.door.x * TS + 8; S.py = (GH_B.door.y + 1) * TS + 12; S.dir = 0; }
+      else { S.px = MINE_ENT.door.x * TS + 8; S.py = (MINE_ENT.door.y + 1) * TS + 12; S.dir = 0; }
+    }
     localStorage.setItem(SAVE_KEY, JSON.stringify(S));
   } catch (e) { /* sem armazenamento disponível */ }
 }
@@ -1043,7 +1485,7 @@ function handleTap(wx, wy) {
   if (Math.abs(tx - px) + Math.abs(ty - py) === 1) { faceTo(tx, ty); doAction(); return; }
   const st = structAt(tx, ty);
   const goals = new Set();
-  const target = st === HOUSE ? [HOUSE.door.x, HOUSE.door.y] : st === STALL ? [STALL.x + 1, STALL.y + 1] : [tx, ty];
+  const target = st && st.door ? [st.door.x, st.door.y] : st === STALL ? [STALL.x + 1, STALL.y + 1] : [tx, ty];
   const special = !!(st || npcAt(tx, ty));
   if (isBlocked(...target) || special) {
     for (const [dx, dy] of DIRV) { const nx = target[0] + dx, ny = target[1] + dy; if (!isBlocked(nx, ny)) goals.add(key(nx, ny)); }
@@ -1102,9 +1544,11 @@ function updatePlayer(dt) {
   if (fishing) { P.anim = 'rod'; P.frame = 2; }
   else if (moving) { P.anim = 'walk'; P.frame = Math.floor(P.animT * 8) % 4; }
   else { P.anim = 'idle'; P.frame = Math.floor(P.animT * 1.6) % 2; }
+  // porta da estufa
+  if (scene === 'gh') { const [x, y] = playerTile(); if (inMap(x, y) && ground[y][x] === G_EXIT) exitGreenhouse(); }
 }
 
-function isPaused() { return sleeping || UI.blocking(); }
+function isPaused() { return sleeping || transitioning || UI.blocking(); }
 
 // ---------------------------------------------------------------- loop
 function update(dt) {
@@ -1115,6 +1559,8 @@ function update(dt) {
   updatePlayer(dt);
   updateFishing(dt);
   updateAnimals(dt);
+  updateMonsters(dt);
+  if (isPaused()) return;
   if (input.actionHeld && !P.busy && clock - input.lastAction > 0.3) {
     const a = resolveAction();
     if (a.run && REPEATABLE.has(a.label)) doAction();
@@ -1141,11 +1587,39 @@ function maskOf(x, y, test) {
   return m;
 }
 
+function drawGroundTile(x, y, wf) {
+  const g = ground[y][x], X = x * TS, Y = y * TS;
+  const floorMask = () => maskOf(x, y, (a, b) => !!FLOOR[key(a, b)]);
+  if (scene === 'mine') {
+    if (g === G_WALL) ctx.drawImage(Sprites.caveWall(inMap(x, y + 1) && ground[y + 1][x] !== G_WALL), X, Y);
+    else ctx.drawImage(Sprites.caveFloor(hash(x, y) % 4), X, Y);
+    return;
+  }
+  if (scene === 'gh') {
+    if (g === G_WALL) ctx.drawImage(Sprites.glassWall(y === 0 ? 0 : y === GH_H - 1 ? 2 : 1), X, Y);
+    else if (g === G_EXIT) ctx.drawImage(Sprites.doormat(), X, Y);
+    else ctx.drawImage(Sprites.ghFloor(hash(x, y) % 3), X, Y);
+    if (FLOOR[key(x, y)]) ctx.drawImage(Sprites.cobble(floorMask()), X, Y);
+    return;
+  }
+  const isG = (a, b, t) => inMap(a, b) && ground[b][a] === t;
+  if (g === G_WATER || g === G_PLANK) {
+    ctx.drawImage(Sprites.water(wf, maskOf(x, y, (a, b) => !inMap(a, b) || ground[b][a] === G_WATER || ground[b][a] === G_PLANK)), X, Y);
+    if (g === G_PLANK) ctx.drawImage(Sprites.plank(), X, Y);
+    return;
+  }
+  if (g === G_STONE) { ctx.drawImage(Sprites.stone(hash(x, y) % 5 === 0 ? 1 : 0), X, Y); return; }
+  const h = hash(x, y) % 16;
+  ctx.drawImage(Sprites.grass(S.season, h < 1 ? 2 : h < 4 ? 1 : h === 5 ? 3 : 0), X, Y);
+  if (g === G_PATH) ctx.drawImage(Sprites.path(maskOf(x, y, (a, b) => isG(a, b, G_PATH) || isG(a, b, G_PLANK))), X, Y);
+  if (FLOOR[key(x, y)]) ctx.drawImage(Sprites.cobble(floorMask()), X, Y);
+}
+
 function render() {
   const W = cvs.width, H = cvs.height;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#16301c';
+  ctx.fillStyle = scene === 'mine' ? '#0e0c0a' : scene === 'gh' ? '#2a4a2e' : '#16301c';
   ctx.fillRect(0, 0, W, H);
   if (!S || !P) return;
   viewW = W / zoom; viewH = H / zoom;
@@ -1159,28 +1633,13 @@ function render() {
   const x0 = Math.max(0, Math.floor(camX / TS) - 1), x1 = Math.min(MW - 1, Math.ceil((camX + viewW) / TS) + 1);
   const y0 = Math.max(0, Math.floor(camY / TS) - 1), y1 = Math.min(MH - 1, Math.ceil((camY + viewH) / TS) + 2);
   const season = S.season, wf = Math.floor(clock * 2.5) % 4;
-  const isG = (x, y, g) => inMap(x, y) && ground[y][x] === g;
-  const isWaterish = (x, y) => !inMap(x, y) || ground[y][x] === G_WATER || ground[y][x] === G_PLANK;
 
-  // camada 1: fundo (grama, água, caminhos, pisos)
-  const isFloor = (a, b) => !!S.floor[key(a, b)];
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const g = ground[y][x], X = x * TS, Y = y * TS;
-    if (g === G_WATER || g === G_PLANK) {
-      ctx.drawImage(Sprites.water(wf, maskOf(x, y, isWaterish)), X, Y);
-      if (g === G_PLANK) ctx.drawImage(Sprites.plank(), X, Y);
-      continue;
-    }
-    if (g === G_STONE) { ctx.drawImage(Sprites.stone(hash(x, y) % 5 === 0 ? 1 : 0), X, Y); continue; }
-    const h = hash(x, y) % 16;
-    ctx.drawImage(Sprites.grass(season, h < 1 ? 2 : h < 4 ? 1 : h === 5 ? 3 : 0), X, Y);
-    if (g === G_PATH) ctx.drawImage(Sprites.path(maskOf(x, y, (a, b) => isG(a, b, G_PATH) || isG(a, b, G_PLANK))), X, Y);
-    if (S.floor[key(x, y)]) ctx.drawImage(Sprites.cobble(maskOf(x, y, isFloor)), X, Y);
-  }
+  // camada 1: chão da cena
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) drawGroundTile(x, y, wf);
   // camada 2: terra arada
-  const tilled = (a, b) => !!S.farm[key(a, b)];
+  const tilled = (a, b) => !!FARM[key(a, b)];
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const ft = S.farm[key(x, y)];
+    const ft = FARM[key(x, y)];
     if (ft) ctx.drawImage(Sprites.soil(maskOf(x, y, tilled), ft.is_watered), x * TS, y * TS);
   }
   // cursor do tile alvo
@@ -1191,30 +1650,36 @@ function render() {
     ctx.strokeRect(tx * TS + 0.5, ty * TS + 0.5, TS - 1, TS - 1);
   }
 
-  // camada 3: objetos, plantas, estruturas, animais, moradores e jogador ordenados por profundidade
+  // camada 3: tudo que tem altura, ordenado por profundidade
   const list = [];
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const o = S.objs[key(x, y)];
+    const o = OBJS[key(x, y)];
     if (o) list.push({ z: y * TS + 15, o, x, y });
-    const ft = S.farm[key(x, y)];
+    const ft = FARM[key(x, y)];
     if (ft && ft.crop_type) list.push({ z: y * TS + 8, ft, x, y });
   }
-  const addStruct = (s, img, h) => list.push({ z: (s.y + s.h) * TS, img, x: s.x * TS, y: (s.y + s.h) * TS - h });
-  addStruct(HOUSE, Sprites.house(), 84);
-  addStruct(BIN, Sprites.bin(), 26);
-  addStruct(STALL, Sprites.stall(), 56);
-  addStruct(BOARD, Sprites.board(), 26);
-  if (S.coop) addStruct(COOP, Sprites.coop(), 46);
-  if (S.barn) addStruct(BARN, Sprites.barn(), 62);
-  if (festivalToday()) addStruct(FEST, Sprites.festTent(S.season), 52);
-  for (const id in NPCS) {
-    const n = NPCS[id];
-    if (n.x != null) list.push({ z: n.y * TS + 12, npc: id, x: n.x * TS + 8, y: n.y * TS + 12 });
+  if (scene === 'farm') {
+    const addStruct = (s, img, h) => list.push({ z: (s.y + s.h) * TS, img, x: s.x * TS, y: (s.y + s.h) * TS - h });
+    addStruct(HOUSE, Sprites.house(), 84);
+    addStruct(BIN, Sprites.bin(), 26);
+    addStruct(STALL, Sprites.stall(), 56);
+    addStruct(BOARD, Sprites.board(), 26);
+    addStruct(ALTAR, Sprites.altar(S.bestCandles), 26);
+    addStruct(MINE_ENT, Sprites.mineEntrance(), 40);
+    if (S.coop) addStruct(COOP, Sprites.coop(), 46);
+    if (S.barn) addStruct(BARN, Sprites.barn(), 62);
+    if (S.greenhouse) addStruct(GH_B, Sprites.greenhouse(), 80);
+    if (festivalToday()) addStruct(FEST, Sprites.festTent(S.season), 52);
+    for (const id in NPCS) {
+      const n = NPCS[id];
+      if (n.x != null) list.push({ z: n.y * TS + 12, npc: id, x: n.x * TS + 8, y: n.y * TS + 12 });
+    }
+    if (animalsOut()) for (const a of S.animals) { const r = animRT[a.id]; if (r) list.push({ z: r.y, animal: a, r }); }
   }
-  if (animalsOut()) for (const a of S.animals) { const r = animRT[a.id]; if (r) list.push({ z: r.y, animal: a, r }); }
+  if (mine && scene === 'mine') for (const m of mine.monsters) list.push({ z: m.y, monster: m });
   list.push({ z: P.y, player: true });
   list.sort((a, b) => a.z - b.z);
-  const isFence = (a, b) => { const o = inMap(a, b) && S.objs[key(a, b)]; return !!(o && (o.t === 'fence' || o.t === 'pfence')); };
+  const isFence = (a, b) => { const o = inMap(a, b) && OBJS[key(a, b)]; return !!(o && (o.t === 'fence' || o.t === 'pfence')); };
   for (const d of list) {
     if (d.img) { ctx.drawImage(d.img, d.x, d.y); continue; }
     if (d.player) { drawPlayer(); continue; }
@@ -1224,28 +1689,43 @@ function render() {
       continue;
     }
     if (d.animal) { drawAnimal(d.animal, d.r); continue; }
+    if (d.monster) {
+      const m = d.monster;
+      shadow(m.x, m.y + 2, 5);
+      if (m.hurt > 0 && Math.floor(clock * 30) % 2) continue;
+      drawImg(Sprites.slime(m.type, Math.floor(m.t * 5) % 2), m.x - 8, m.y - 12);
+      continue;
+    }
     const X = d.x * TS, Y = d.y * TS;
     if (d.ft) {
       ctx.drawImage(Sprites.crop(d.ft.crop_type, d.ft.dead ? 5 : d.ft.growth_stage), X, Y - 8);
       continue;
     }
     const o = d.o;
+    let bubble = null;
     switch (o.t) {
       case 'tree': ctx.drawImage(Sprites.tree(season), X - 4, Y - 16); break;
       case 'pine': ctx.drawImage(Sprites.pine(season), X - 4, Y - 16); break;
       case 'stump': ctx.drawImage(Sprites.stump(), X, Y); break;
-      case 'rock': case 'copper': case 'iron': ctx.drawImage(Sprites.rock(o.t), X, Y); break;
+      case 'rock': case 'copper': case 'iron': case 'gold': ctx.drawImage(Sprites.rock(o.t), X, Y); break;
       case 'weed': ctx.drawImage(Sprites.weed(season), X, Y); break;
       case 'branch': ctx.drawImage(Sprites.branch(), X, Y); break;
       case 'fence': case 'pfence': ctx.drawImage(Sprites.fence(maskOf(d.x, d.y, isFence)), X, Y); break;
-      case 'sprinkler': case 'sprinkler2': ctx.drawImage(Sprites.sprinklerObj(o.t === 'sprinkler2' ? 2 : 1), X, Y); break;
+      case 'sprinkler': case 'sprinkler2': case 'sprinkler3': ctx.drawImage(Sprites.sprinklerObj(SPRINKLER_R[o.t]), X, Y); break;
       case 'lamp': ctx.drawImage(Sprites.lampObj(), X, Y - 16); break;
       case 'flowerbed': ctx.drawImage(Sprites.flowerbedObj(), X, Y); break;
       case 'trophy': ctx.drawImage(Sprites.trophyObj(), X, Y); break;
+      case 'statue': ctx.drawImage(Sprites.statueObj(), X, Y - 16); bubble = o.ready; break;
+      case 'ladder_down': case 'ladder_up': ctx.drawImage(Sprites.ladder(o.t === 'ladder_up'), X, Y); break;
+      case 'chest': case 'chest_open': ctx.drawImage(Sprites.chest(o.t === 'chest_open'), X, Y); break;
+      default:
+        if (o.t.startsWith('gem_')) ctx.drawImage(Sprites.gemNode(o.t.slice(4)), X, Y);
+        else if (MACHINES[o.t]) { ctx.drawImage(Sprites.machine(o.t, !!o.input), X, Y - 8); if (machineReady(o)) bubble = o.out; }
     }
+    if (bubble) drawBubble(X + 8, Y - (o.t === 'statue' ? 20 : 12), iconId(bubble));
   }
 
-  if (festivalToday()) drawBunting();
+  if (scene === 'farm' && festivalToday()) drawBunting();
 
   // boia de pesca
   if (fishing && fishing.state !== 'cast') {
@@ -1266,12 +1746,20 @@ function render() {
     ctx.fillStyle = '#ffe14a'; ctx.fillRect(l.x - 1, l.y - 2, 2, 3);
   }
 
-  // tela: noite com luzes, chuva e textos flutuantes
+  // tela: escuridão com luzes, chuva e textos flutuantes
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const dark = darkness();
+  const dark = scene === 'mine' ? 0.62 : darkness() * (scene === 'gh' ? 0.6 : 1);
   if (dark > 0) drawLighting(W, H, dark, x0, x1, y0, y1, lanterns);
-  if (S.weather !== 'sun') drawWeather(W, H);
+  if (scene === 'farm' && S.weather !== 'sun') drawWeather(W, H);
+  if (P.invuln > 0.7) { ctx.fillStyle = `rgba(255,40,40,${(P.invuln - 0.7) * 0.8})`; ctx.fillRect(0, 0, W, H); }
   drawFloaters();
+}
+
+function drawBubble(x, y, icon) {
+  const by = y + Math.sin(clock * 3) * 1.5;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.beginPath(); ctx.arc(x, by, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.drawImage(Sprites.icon(icon), Math.round(x - 5), Math.round(by - 5), 10, 10);
 }
 
 function shadow(x, y, w = 6) {
@@ -1288,12 +1776,7 @@ function drawAnimal(a, r) {
     shadow(r.x, r.y, 9);
     drawImg(Sprites.cow(r.dir === 3, f), r.x - 12, r.y - 20);
   }
-  if (a.ready) {
-    const by = r.y - (a.type === 'cow' ? 32 : 26) + Math.sin(clock * 3) * 1.5;
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.beginPath(); ctx.arc(r.x, by, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.drawImage(Sprites.icon(baseOf(a.ready)), Math.round(r.x - 5), Math.round(by - 5), 10, 10);
-  }
+  if (a.ready) drawBubble(r.x, r.y - (a.type === 'cow' ? 32 : 26), baseOf(a.ready));
 }
 
 function drawBunting() {
@@ -1324,7 +1807,8 @@ function handPos() {
 
 function drawPlayer() {
   shadow(P.x, P.y);
-  const toolAnims = { hoe: 'hoe', water: 'can', axe: 'axe', pick: 'pick', rod: 'rod' };
+  if (P.invuln > 0 && Math.floor(clock * 20) % 2) return;
+  const toolAnims = { hoe: 'hoe', water: 'can', axe: 'axe', pick: 'pick', rod: 'rod', sword: 'sword' };
   const ic = toolAnims[P.anim] ? iconId(toolAnims[P.anim]) : null;
   drawImg(Sprites.player(P.anim, P.dir, P.frame, ic), P.x - 16, P.y - 36);
 }
@@ -1337,23 +1821,26 @@ function darkness() {
   return 0;
 }
 
-// Escurece a tela e "recorta" a luz dos lampiões, janelas e lanternas
+// Escurece a tela e "recorta" a luz de lampiões, janelas, lanternas, gemas e do jogador na mina
 function drawLighting(W, H, dark, x0, x1, y0, y1, lanterns) {
   if (lightCv.width !== W || lightCv.height !== H) { lightCv.width = W; lightCv.height = H; }
   lctx.globalCompositeOperation = 'source-over';
   lctx.clearRect(0, 0, W, H);
-  lctx.fillStyle = `rgba(16,20,64,${dark})`;
+  lctx.fillStyle = scene === 'mine' ? `rgba(8,6,4,${dark + 0.25})` : `rgba(16,20,64,${dark})`;
   lctx.fillRect(0, 0, W, H);
   const lights = [];
   if (dark > 0.12) {
     for (let y = y0 - 3; y <= y1 + 3; y++) for (let x = x0 - 3; x <= x1 + 3; x++) {
-      const o = inMap(x, y) && S.objs[key(x, y)];
-      if (o && o.t === 'lamp') lights.push([x * TS + 8, y * TS - 6, 46]);
+      const o = inMap(x, y) && OBJS[key(x, y)];
+      if (!o) continue;
+      if (o.t === 'lamp') lights.push([x * TS + 8, y * TS - 6, 46]);
+      else if (o.t.startsWith('gem_') || o.t === 'ladder_down' || o.t === 'chest') lights.push([x * TS + 8, y * TS + 8, 12]);
     }
-    if (S.time >= 18 * 60) {
+    if (scene === 'farm' && S.time >= 18 * 60) {
       const hx = HOUSE.x * TS, hy = (HOUSE.y + HOUSE.h) * TS - 84;
       lights.push([hx + 18, hy + 60, 20], [hx + 62, hy + 60, 20]);
     }
+    if (scene === 'mine') lights.push([P.x, P.y - 10, 70]);
     for (const l of lanterns) lights.push([l.x, l.y, 14]);
   }
   lctx.globalCompositeOperation = 'destination-out';
@@ -1370,7 +1857,7 @@ function drawLighting(W, H, dark, x0, x1, y0, y1, lanterns) {
     for (const [wx, wy, r] of lights) {
       const sx = (wx - camX) * zoom, sy = (wy - camY) * zoom, rr = r * zoom * 0.7;
       const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, rr);
-      g.addColorStop(0, `rgba(255,170,70,${0.22 * dark / 0.6})`); g.addColorStop(1, 'rgba(255,170,70,0)');
+      g.addColorStop(0, `rgba(255,170,70,${0.22 * Math.min(1, dark / 0.6)})`); g.addColorStop(1, 'rgba(255,170,70,0)');
       ctx.fillStyle = g;
       ctx.fillRect(sx - rr, sy - rr, rr * 2, rr * 2);
     }
@@ -1414,7 +1901,7 @@ function drawFloaters() {
     ctx.lineWidth = Math.max(2, zoom * 0.9);
     ctx.strokeStyle = '#2a1c14';
     ctx.strokeText(f.text, tx, sy);
-    ctx.fillStyle = f.text === '!' || f.text.startsWith('★') ? '#ffe14a' : f.text === '❤' ? '#ff6b8a' : '#ffffff';
+    ctx.fillStyle = f.color || (f.text === '!' || f.text.startsWith('★') || f.text === 'Escada!' ? '#ffe14a' : f.text === '❤' ? '#ff6b8a' : '#ffffff');
     ctx.fillText(f.text, tx, sy);
   }
   ctx.globalAlpha = 1;
@@ -1487,9 +1974,12 @@ function setupInput() {
 
 // ---------------------------------------------------------------- início
 function startGame(fresh) {
-  if (fresh) { S = newState(); S.quests.push(genQuest()); }
+  if (fresh) S = newState();
   else { S = loadSave() || newState(); }
   P = newPlayer();
+  mine = null;
+  setScene('farm');
+  if (fresh) S.quests.push(genQuest());
   particles = []; floaters = []; fishing = null; rain = []; animRT = {};
   UI.refresh();
   if (!S.seenIntro) { S.seenIntro = true; UI.intro(); }
@@ -1502,6 +1992,7 @@ function boot() {
   setupInput();
   S = loadSave() || newState();
   P = newPlayer();
+  setScene('farm');
   UI.init();
   requestAnimationFrame(frame);
 }

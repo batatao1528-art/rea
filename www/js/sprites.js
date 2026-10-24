@@ -246,7 +246,7 @@ const Sprites = (() => {
     const { c, x } = mk(16, 16);
     ell(x, 8, 9.5, 6.5, 5, (dx, dy) => dx + dy < -0.5 ? '#bab6b0' : (dx + dy > 0.6 ? '#76726c' : '#9a968f'));
     px(x, 5, 6, '#d8d4ce'); px(x, 6, 6, '#d8d4ce'); line(x, 9, 9, 11, 11, '#76726c');
-    const spec = kind === 'copper' ? ['#e08a3c', '#b8612a'] : kind === 'iron' ? ['#f2ece0', '#c8b8a0'] : null;
+    const spec = kind === 'copper' ? ['#e08a3c', '#b8612a'] : kind === 'iron' ? ['#f2ece0', '#c8b8a0'] : kind === 'gold' ? ['#ffe14a', '#c8961e'] : null;
     if (spec) [[5, 9], [9, 7], [11, 10], [7, 12], [10, 13]].forEach(([a, b], i) => {
       rect(x, a, b, 2, 1, spec[0]); px(x, a, b + 1, spec[1]);
     });
@@ -444,16 +444,16 @@ const Sprites = (() => {
     line(x, 4, 12, 11 - len, 5 + len, WOOD[1]);
     line(x, 4, 13, 11 - len, 6 + len, WOOD[2]);
   }
-  const METAL = lvl => lvl === 2 ? ['#eef3f8', '#c3ccd6', '#8994a0'] : ['#b8b4ac', '#8f8b84', '#66625c'];
+  const METAL = lvl => lvl === 3 ? ['#fff08a', '#f2c230', '#b8861e'] : lvl === 2 ? ['#eef3f8', '#c3ccd6', '#8994a0'] : ['#b8b4ac', '#8f8b84', '#66625c'];
 
   function rawIcon(id) {
     const { c, x } = mk(16, 16);
-    const m = id.match(/^(hoe|can|axe|pick)(\d)(f?)$/);
+    const m = id.match(/^(hoe|can|axe|pick|sword)(\d)(f?)$/);
     if (m) {
       const lvl = +m[2];
       if (m[1] === 'hoe') {
         handle(x);
-        const col = lvl === 2 ? METAL(2) : ['#c89a62', '#a0703c', '#7a4c24'];
+        const col = lvl >= 2 ? METAL(lvl) : ['#c89a62', '#a0703c', '#7a4c24'];
         rect(x, 10, 2, 4, 3, col[1]); rect(x, 12, 4, 3, 7, col[1]); rect(x, 12, 4, 1, 7, col[0]); rect(x, 14, 4, 1, 7, col[2]);
       } else if (m[1] === 'axe') {
         handle(x);
@@ -464,8 +464,13 @@ const Sprites = (() => {
         const col = METAL(lvl);
         line(x, 6, 2, 9, 1, col[1], 2); line(x, 9, 1, 13, 4, col[1], 2); line(x, 13, 4, 14, 8, col[1], 2);
         px(x, 6, 3, col[2]); px(x, 15, 9, col[2]); line(x, 9, 1, 12, 3, col[0]);
+      } else if (m[1] === 'sword') {
+        const col = lvl >= 2 ? METAL(lvl) : ['#d8b888', '#b08a58', '#806038'];
+        line(x, 5, 10, 13, 2, col[1], 2); line(x, 6, 10, 14, 2, col[0]); px(x, 14, 1, col[0]);
+        line(x, 3, 8, 7, 12, '#7a4a22', 2); px(x, 5, 10, '#f2c230');
+        line(x, 4, 12, 2, 14, WOOD[1], 2); px(x, 1, 15, '#f2c230');
       } else {
-        const col = lvl === 2 ? ['#f2d070', '#d8a838', '#a87a20'] : ['#a8c4d8', '#7d9bb3', '#5a7890'];
+        const col = lvl === 3 ? ['#fff08a', '#f2c230', '#b8861e'] : lvl === 2 ? ['#e8eef4', '#b8c4d0', '#7d8a98'] : ['#a8c4d8', '#7d9bb3', '#5a7890'];
         rect(x, 5, 7, 8, 7, col[1]); rect(x, 5, 7, 2, 6, col[0]); rect(x, 5, 13, 8, 1, col[2]); rect(x, 11, 7, 2, 7, col[2]);
         rect(x, 7, 4, 4, 1, col[2]); rect(x, 11, 5, 1, 3, col[2]); px(x, 6, 5, col[2]); px(x, 6, 6, col[2]);
         line(x, 5, 9, 1, 5, col[1], 1); line(x, 5, 10, 2, 7, col[2]); rect(x, 0, 4, 2, 2, col[0]);
@@ -532,9 +537,9 @@ const Sprites = (() => {
         ell(x, 8, 9, 6, 4.5, (dx, dy) => dx + dy < -0.5 ? '#bab6b0' : (dx + dy > 0.6 ? '#76726c' : '#9a968f'));
         px(x, 5, 7, '#d8d4ce');
         break;
-      case 'copper': case 'iron': {
+      case 'copper': case 'iron': case 'gold': {
         ell(x, 8, 9, 6, 4.5, (dx, dy) => dx + dy > 0.6 ? '#66625c' : '#8a867f');
-        const s = id === 'copper' ? ['#e08a3c', '#ffb070'] : ['#e8e2d6', '#ffffff'];
+        const s = id === 'copper' ? ['#e08a3c', '#ffb070'] : id === 'gold' ? ['#ffd23a', '#fff6a0'] : ['#e8e2d6', '#ffffff'];
         [[5, 8], [9, 7], [10, 10], [6, 11]].forEach(([a, b]) => { rect(x, a, b, 2, 2, s[0]); px(x, a, b, s[1]); });
         break;
       }
@@ -591,6 +596,57 @@ const Sprites = (() => {
         rect(x, 7, 9, 2, 6, '#3a3a3a'); rect(x, 4, 2, 8, 8, '#3a3a3a'); rect(x, 5, 3, 6, 6, '#ffe88a'); rect(x, 6, 4, 2, 2, '#ffffff'); rect(x, 5, 1, 6, 1, '#3a3a3a');
         break;
       case 'trophy': x.drawImage(trophyObj(), 0, 0); break;
+      case 'amethyst': case 'emerald': case 'ruby': case 'diamond': {
+        const c2 = GEM_COL[id];
+        for (let r = 0; r < 4; r++) rect(x, 5 - r, 3 + r, 6 + r * 2, 1, r === 0 ? c2[0] : c2[1]);
+        for (let r = 0; r < 6; r++) rect(x, 3 + r, 7 + r, 10 - r * 2, 1, r < 2 ? c2[1] : c2[2]);
+        line(x, 5, 3, 3, 6, c2[0]); px(x, 6, 4, '#ffffff'); px(x, 5, 5, '#ffffff'); line(x, 8, 3, 8, 12, c2[2]);
+        break;
+      }
+      case 'slime':
+        ell(x, 8, 10, 6, 4.5, (dx, dy) => (dy < -0.3 ? '#a8f080' : '#5cc64a')); px(x, 6, 9, '#1a3a1a'); px(x, 10, 9, '#1a3a1a'); px(x, 5, 7, '#ffffff');
+        break;
+      case 'fossil':
+        line(x, 3, 12, 12, 3, '#ece4d0', 3); ell(x, 3, 12, 2.2, 2.2, '#ece4d0'); ell(x, 13, 3, 2.2, 2.2, '#ece4d0'); px(x, 8, 8, '#c8bea8');
+        break;
+      case 'idol':
+        rect(x, 5, 3, 6, 11, '#5a8a6a'); rect(x, 4, 12, 8, 3, '#4a7058'); rect(x, 6, 5, 1, 2, '#1a2a1a'); rect(x, 9, 5, 1, 2, '#1a2a1a');
+        rect(x, 6, 9, 4, 1, '#3a5a48'); rect(x, 4, 2, 8, 2, '#f2c230');
+        break;
+      case 'crown':
+        rect(x, 2, 8, 12, 5, '#f2c230'); rect(x, 2, 12, 12, 1, '#b8861e');
+        for (const cx of [2, 7, 12]) { rect(x, cx, 4, 2, 4, '#f2c230'); px(x, cx, 3, '#fff08a'); }
+        px(x, 5, 10, '#e83050'); px(x, 8, 10, '#30c070'); px(x, 11, 10, '#4aa8f0');
+        break;
+      case 'fish_legend0': case 'fish_legend1': case 'fish_legend2': case 'fish_legend3': {
+        const col = { fish_legend0: ['#ffd23a', '#d8961e'], fish_legend1: ['#f0a030', '#c86a1a'], fish_legend2: ['#c84a3a', '#5a3a2a'], fish_legend3: ['#c8f0ff', '#6aa8d8'] }[id];
+        ell(x, 8.5, 8, 6.5, 4, (dx, dy) => (dy > 0.3 ? col[1] : col[0]));
+        rect(x, 0, 4, 2, 9, col[1]); rect(x, 2, 6, 1, 5, col[1]); rect(x, 6, 3, 5, 1, col[1]);
+        px(x, 13, 7, '#1a1a1a'); px(x, 7, 6, '#ffffff'); px(x, 14, 1, '#fff6a0'); px(x, 2, 14, '#fff6a0');
+        break;
+      }
+      case 'cheese':
+        for (let r = 0; r < 8; r++) rect(x, 2, 6 + r, 3 + r * 1.5 | 0, 1, '#f8d050');
+        rect(x, 2, 13, 13, 1, '#d8a828'); px(x, 5, 10, '#e0b030'); px(x, 8, 12, '#e0b030'); px(x, 4, 8, '#fff08a');
+        break;
+      case 'mayo':
+        rect(x, 4, 5, 8, 10, '#fbf6e4'); rect(x, 4, 3, 8, 2, '#f2c230'); rect(x, 5, 8, 6, 4, '#f8d050'); rect(x, 11, 5, 1, 10, '#e0d8c0');
+        break;
+      case 'sprinkler3': x.drawImage(sprinklerObj(3), 0, 0); break;
+      case 'keg': case 'jar': case 'cheese_press': case 'mayo_machine': x.drawImage(machine(id, false), 2, 0, 11, 16); break;
+      case 'statue': x.drawImage(statueObj(), 3, 0, 10, 16); break;
+      default: {
+        const [kind, src] = id.split('~');
+        const col = CROP_COL[src] || '#e8303e';
+        if (kind === 'juice') {
+          rect(x, 6, 1, 4, 3, '#c8e0e8'); rect(x, 6, 0, 4, 1, '#8a5a2c');
+          rect(x, 4, 4, 8, 11, '#d8eef4'); rect(x, 5, 6, 6, 8, col); px(x, 5, 6, '#ffffff'); rect(x, 11, 4, 1, 11, '#a8c8d0');
+        } else if (kind === 'jam') {
+          rect(x, 3, 5, 10, 10, '#d8eef4'); rect(x, 4, 7, 8, 7, col); rect(x, 3, 3, 10, 3, '#c8a060'); rect(x, 3, 3, 10, 1, '#e0c080');
+          rect(x, 5, 9, 6, 3, '#f4ead8'); px(x, 4, 8, '#ffffff');
+        }
+        break;
+      }
       case 'salad':
         for (let r = 0; r < 4; r++) rect(x, 2 + r, 10 + r, 13 - r * 2, 1, r ? '#d8d0c4' : '#f4ead8');
         ell(x, 8, 8.5, 5.5, 3, '#5cc64a'); px(x, 6, 7, '#e2402e'); px(x, 10, 8, '#f08a24'); px(x, 8, 6, '#7ad35c'); px(x, 11, 7, '#e2402e');
@@ -738,6 +794,160 @@ const Sprites = (() => {
     return outline(c, '#3a3028');
   }
 
+  // ===================== FIM DE JOGO: MINA, ESTUFA, MÁQUINAS =====================
+  const GEM_COL = {
+    amethyst: ['#e0b0ff', '#b070e0', '#7a40a8'], emerald: ['#a0f0c0', '#30c070', '#1a8048'],
+    ruby: ['#ffa0b0', '#e83050', '#a01830'], diamond: ['#ffffff', '#d8f4ff', '#90c8e0'],
+  };
+  const CROP_COL = { carrot: '#f08a24', strawberry: '#e8303e', sunflower: '#ffd23a', corn: '#f4d03f', tomato: '#e2402e', melon: '#ff6b7a', pumpkin: '#f08a24' };
+
+  function gemNode(gem) {
+    const { c, x } = mk(16, 16);
+    const g = GEM_COL[gem];
+    ell(x, 8, 10.5, 6.5, 4.5, (dx, dy) => (dx + dy > 0.6 ? '#3a3632' : '#5a5650'));
+    for (const [a, b, h] of [[5, 6, 5], [8, 3, 8], [11, 6, 5]]) {
+      rect(x, a, b, 2, h, g[1]); px(x, a, b, g[0]); rect(x, a + 1, b + 1, 1, h - 1, g[2]);
+    }
+    return outline(c, '#1e1a16');
+  }
+  function caveFloor(v) {
+    const { c, x } = mk(16, 16);
+    const r = rand(500 + v);
+    rect(x, 0, 0, 16, 16, '#5a4a3a');
+    for (let i = 0; i < 14; i++) px(x, r() * 16 | 0, r() * 16 | 0, '#6a5a48');
+    for (let i = 0; i < 10; i++) px(x, r() * 16 | 0, r() * 16 | 0, '#4a3c2e');
+    if (v === 1) { rect(x, 4, 9, 2, 1, '#7a6a58'); rect(x, 10, 4, 1, 1, '#7a6a58'); }
+    return c;
+  }
+  function caveWall(face) {
+    const { c, x } = mk(16, 16);
+    const r = rand(77);
+    rect(x, 0, 0, 16, 16, '#2e2620');
+    for (let i = 0; i < 16; i++) px(x, r() * 16 | 0, r() * 16 | 0, '#3e342a');
+    if (face) {
+      rect(x, 0, 9, 16, 7, '#4a3e32'); rect(x, 0, 9, 16, 1, '#5e5040');
+      for (let i = 0; i < 5; i++) rect(x, (i * 4 + 1) % 16, 11 + (i % 3), 2, 1, '#3a3028');
+      rect(x, 0, 15, 16, 1, '#241e18');
+    }
+    return c;
+  }
+  function ladder(up) {
+    const { c, x } = mk(16, 16);
+    if (up) {
+      rect(x, 3, 0, 2, 16, '#8a5a2c'); rect(x, 11, 0, 2, 16, '#8a5a2c');
+      for (let y = 2; y < 16; y += 4) rect(x, 3, y, 10, 2, '#b07a42');
+      return outline(c);
+    }
+    ell(x, 8, 9, 6.5, 5.5, '#0a0806'); ell(x, 8, 8, 5.5, 4.5, '#1a1410');
+    rect(x, 5, 4, 1, 10, '#8a5a2c'); rect(x, 10, 4, 1, 10, '#8a5a2c');
+    for (let y = 5; y < 14; y += 3) rect(x, 5, y, 6, 1, '#b07a42');
+    return c;
+  }
+  function chest(open) {
+    const { c, x } = mk(16, 16);
+    rect(x, 2, 8, 12, 7, '#8a5a2c'); rect(x, 2, 8, 12, 1, '#b07a42'); rect(x, 2, 11, 12, 1, '#f2c230');
+    rect(x, 7, 10, 2, 3, '#f2c230');
+    if (open) { rect(x, 2, 2, 12, 5, '#6a4220'); rect(x, 3, 6, 10, 2, '#ffd84a'); px(x, 5, 6, '#ffffff'); px(x, 10, 7, '#e83050'); }
+    else { rect(x, 2, 4, 12, 4, '#a8743e'); rect(x, 2, 4, 12, 1, '#c08a50'); rect(x, 2, 7, 12, 1, '#f2c230'); }
+    return outline(c);
+  }
+  function glassWall(type) {
+    const { c, x } = mk(16, 16);
+    if (type === 0) {
+      rect(x, 0, 0, 16, 16, '#9ccfe6'); rect(x, 0, 0, 16, 2, '#f4f8fc'); rect(x, 0, 8, 16, 1, '#f4f8fc'); rect(x, 7, 0, 2, 16, '#f4f8fc');
+      rect(x, 2, 3, 3, 1, '#d8f0fc'); rect(x, 10, 10, 3, 1, '#d8f0fc'); rect(x, 0, 14, 16, 2, '#8a6a4a');
+    } else if (type === 1) {
+      rect(x, 0, 0, 16, 16, '#a07850'); rect(x, 5, 0, 6, 16, '#f4f8fc'); rect(x, 6, 0, 4, 16, '#c8e4f0');
+    } else {
+      rect(x, 0, 0, 16, 16, '#a07850'); rect(x, 0, 6, 16, 10, '#8a6a4a'); rect(x, 0, 6, 16, 2, '#f4f8fc');
+    }
+    return c;
+  }
+  function ghFloor(v) {
+    const { c, x } = mk(16, 16);
+    const r = rand(900 + v);
+    rect(x, 0, 0, 16, 16, '#a88058');
+    for (let i = 0; i < 12; i++) px(x, r() * 16 | 0, r() * 16 | 0, '#b8906a');
+    for (let i = 0; i < 8; i++) px(x, r() * 16 | 0, r() * 16 | 0, '#8e6a48');
+    return c;
+  }
+  function doormat() {
+    const { c, x } = mk(16, 16);
+    rect(x, 0, 0, 16, 16, '#a88058'); rect(x, 1, 3, 14, 10, '#b8423a'); rect(x, 2, 4, 12, 8, '#d8604a');
+    for (let i = 3; i < 13; i += 3) rect(x, i, 5, 1, 6, '#b8423a');
+    return c;
+  }
+  function machine(t, busy) {
+    const { c, x } = mk(16, 24);
+    if (t === 'keg') {
+      ell(x, 8, 14, 6, 8, (dx) => (dx < -0.4 ? '#c08a50' : dx > 0.5 ? '#7a4c24' : '#a0703c'));
+      for (const y of [8, 14, 20]) rect(x, 2, y, 12, 1, '#5a5a5a');
+      rect(x, 7, 15, 2, 3, '#8994a0'); rect(x, 6, 18, 4, 1, '#8994a0');
+      if (busy) { px(x, 8, 4, '#ffffff'); px(x, 10, 2, '#ffffff'); }
+    } else if (t === 'jar') {
+      rect(x, 3, 18, 10, 6, '#8a5a2c'); rect(x, 3, 18, 10, 1, '#b07a42');
+      rect(x, 4, 7, 8, 11, '#d8eef4'); rect(x, 4, 5, 8, 2, '#c8a060');
+      if (busy) rect(x, 5, 10, 6, 7, '#e86a4a');
+      px(x, 5, 8, '#ffffff'); rect(x, 11, 7, 1, 11, '#a8c8d0');
+    } else if (t === 'cheese_press') {
+      rect(x, 2, 16, 12, 8, '#a0703c'); rect(x, 2, 16, 12, 1, '#c08a50');
+      rect(x, 3, 4, 2, 13, '#7a4c24'); rect(x, 11, 4, 2, 13, '#7a4c24'); rect(x, 2, 3, 12, 3, '#8a5a2c');
+      rect(x, 7, 6, 2, 6, '#8994a0'); rect(x, 5, 12, 6, 3, busy ? '#f8d050' : '#c8bea8');
+    } else {
+      rect(x, 2, 8, 12, 16, '#e8e4dc'); rect(x, 2, 8, 12, 2, '#ffffff'); rect(x, 12, 8, 2, 16, '#c8c4bc');
+      ell(x, 8, 6, 3, 3.5, '#fbf6ec'); rect(x, 5, 14, 6, 4, '#3a3a3a'); rect(x, 6, 15, 4, 2, busy ? '#5cc64a' : '#f8d050');
+    }
+    return outline(c);
+  }
+  function statueObj() {
+    const { c, x } = mk(16, 32);
+    rect(x, 2, 24, 12, 8, '#8e8a84'); rect(x, 2, 24, 12, 1, '#b8b4ae'); rect(x, 6, 27, 4, 2, '#f2c230');
+    rect(x, 5, 12, 6, 12, '#a8a49e'); rect(x, 5, 12, 2, 12, '#c8c4be');
+    ell(x, 8, 8, 3, 3.5, '#b8b4ae'); rect(x, 3, 4, 10, 2, '#a8a49e'); rect(x, 5, 1, 6, 4, '#a8a49e');
+    rect(x, 3, 14, 2, 6, '#a8a49e'); rect(x, 11, 14, 2, 6, '#a8a49e'); px(x, 7, 8, '#6a6660'); px(x, 9, 8, '#6a6660');
+    return outline(c, '#3a3632');
+  }
+  function slime(type, f) {
+    const { c, x } = mk(16, 16);
+    const col = { green: ['#a8f080', '#5cc64a', '#2f7a26'], blue: ['#b8e4ff', '#4a90e0', '#2a5aa8'], red: ['#ffb0a8', '#e2402e', '#9a2018'] }[type];
+    const ry = f ? 4.2 : 5, rx = f ? 6.8 : 6, cy = f ? 11 : 10;
+    ell(x, 8, cy, rx, ry, (dx, dy) => (dy > 0.45 ? col[2] : dx < -0.3 && dy < -0.2 ? col[0] : col[1]));
+    px(x, 6, cy - 1, '#1a1a1a'); px(x, 10, cy - 1, '#1a1a1a'); px(x, 6, cy - 2, '#1a1a1a'); px(x, 10, cy - 2, '#1a1a1a');
+    px(x, 5, cy - 3, '#ffffff');
+    return outline(c, '#141414');
+  }
+  function mineEntrance() {
+    const { c, x } = mk(48, 40);
+    ell(x, 24, 22, 23, 18, (dx, dy) => (dx + dy > 0.7 ? '#5a5650' : dx + dy < -0.5 ? '#a8a49e' : '#8a867f'));
+    rect(x, 0, 30, 48, 10, '#7a766f');
+    rect(x, 15, 18, 18, 22, '#0e0a08'); ell(x, 24, 18, 9, 6, '#0e0a08');
+    rect(x, 13, 16, 3, 24, '#7a4a22'); rect(x, 32, 16, 3, 24, '#7a4a22'); rect(x, 12, 14, 24, 3, '#8a5a2c');
+    rect(x, 36, 18, 3, 4, '#3a3a3a'); rect(x, 37, 19, 1, 2, '#ffe88a');
+    rect(x, 18, 8, 12, 5, '#c08a50'); rect(x, 19, 10, 10, 1, '#5a3418');
+    return outline(c);
+  }
+  function greenhouse() {
+    const { c, x } = mk(80, 80);
+    rect(x, 2, 32, 76, 48, '#a8d8f0');
+    for (let X = 2; X <= 78; X += 12) rect(x, X, 32, 2, 48, '#f4f8fc');
+    rect(x, 2, 54, 76, 2, '#f4f8fc'); rect(x, 2, 74, 76, 6, '#8a6a4a');
+    for (let i = 0; i < 6; i++) { const px_ = 6 + i * 12; rect(x, px_, 62, 6, 10, '#4caf3a'); px(x, px_ + 2, 61, '#ff6b8a'); px(x, px_ + 4, 63, '#ffd84a'); }
+    for (let y = 2; y < 34; y++) { const l = Math.round(36 - y * 1.1); rect(x, Math.max(0, l), y, 80 - 2 * Math.max(0, l), 1, y % 6 === 0 ? '#f4f8fc' : '#c8e8f8'); }
+    for (let X = 8; X < 76; X += 12) line(x, 40, 2, X, 32, '#f4f8fc');
+    rect(x, 33, 56, 14, 24, '#7a4a22'); rect(x, 34, 57, 12, 23, '#a8d8f0'); rect(x, 39, 57, 2, 23, '#7a4a22');
+    return outline(c);
+  }
+  function altar(candles) {
+    const { c, x } = mk(16, 26);
+    rect(x, 1, 16, 14, 10, '#8e8a84'); rect(x, 1, 16, 14, 2, '#b8b4ae'); rect(x, 3, 20, 10, 3, '#6e6a64');
+    rect(x, 2, 6, 12, 10, '#a8a49e'); rect(x, 2, 6, 12, 1, '#c8c4be'); rect(x, 6, 8, 4, 5, '#5a3a2a');
+    for (let i = 0; i < 4; i++) {
+      const cx = 2 + i * 4; rect(x, cx, 2, 2, 4, '#f4ead8');
+      if (i < candles) { px(x, cx, 0, '#ffd84a'); px(x, cx + 1, 1, '#ff8a30'); px(x, cx, 1, '#ffd84a'); }
+    }
+    return outline(c);
+  }
+
   // Moradores: reaproveita o desenho do personagem trocando a paleta
   function npcFrame(pal, dir, f) {
     const saved = { ...C };
@@ -816,7 +1026,7 @@ const Sprites = (() => {
     const side = dir >= 2, d = side ? 2 : dir;
     const { c, x } = mk(32, 40);
     const o = {};
-    const isTool = ['hoe', 'water', 'axe', 'pick', 'rod'].includes(anim);
+    const isTool = ['hoe', 'water', 'axe', 'pick', 'rod', 'sword'].includes(anim);
     if (anim === 'idle') o.bob = f;
     else if (anim === 'walk') {
       if (side) { o.stride = [1, 0, -1, 0][f]; o.swing = [-1, 0, 1, 0][f]; }
@@ -884,6 +1094,20 @@ const Sprites = (() => {
     chicken: (right, f) => memo(`chk${right ? 1 : 0}${f}`, () => (right ? flipped(chicken(f)) : chicken(f))),
     cow: (right, f) => memo(`cow${right ? 1 : 0}${f}`, () => (right ? flipped(cow(f)) : cow(f))),
     npc: (id, dir, f) => memo(`npc${id}${dir}${f}`, () => npcFrame(NPCS[id].pal, dir, f)),
+    gemNode: g => memo(`gn${g}`, () => gemNode(g)),
+    caveFloor: v => memo(`cf${v}`, () => caveFloor(v)),
+    caveWall: f => memo(`cw${f ? 1 : 0}`, () => caveWall(f)),
+    ladder: up => memo(`ld${up ? 1 : 0}`, () => ladder(up)),
+    chest: open => memo(`ch${open ? 1 : 0}`, () => chest(open)),
+    glassWall: t => memo(`gw${t}`, () => glassWall(t)),
+    ghFloor: v => memo(`gf${v}`, () => ghFloor(v)),
+    doormat: () => memo('doormat', doormat),
+    machine: (t, busy) => memo(`mc${t}${busy ? 1 : 0}`, () => machine(t, busy)),
+    statueObj: () => memo('statue', statueObj),
+    slime: (t, f) => memo(`sl${t}${f}`, () => slime(t, f)),
+    mineEntrance: () => memo('mineEnt', mineEntrance),
+    greenhouse: () => memo('greenhouse', greenhouse),
+    altar: n => memo(`altar${n}`, () => altar(n)),
     rawIcon: id => memo(`ri${id}`, () => rawIcon(id)),
     icon: id => memo(`ic${id}`, () => {
       const m = mk(16, 16); m.x.drawImage(api.rawIcon(id), 0, 0); return outline(m.c);

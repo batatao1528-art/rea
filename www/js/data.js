@@ -171,3 +171,109 @@ const FEST_PRIZES = [
   { place: '2º lugar', gold: 500 },
   { place: '3º lugar', gold: 200 },
 ];
+
+// ======================================================================
+// Conteúdo de fim de jogo: mina, ouro, gemas, máquinas, projetos, coleção
+// ======================================================================
+Object.assign(ITEMS, {
+  sword: { name: 'Espada', kind: 'tool', desc: 'Para se defender dos monstros da mina.' },
+  gold: { name: 'Minério de Ouro', kind: 'res', sell: 60 },
+  amethyst: { name: 'Ametista', kind: 'gem', sell: 100 },
+  emerald: { name: 'Esmeralda', kind: 'gem', sell: 250 },
+  ruby: { name: 'Rubi', kind: 'gem', sell: 300 },
+  diamond: { name: 'Diamante', kind: 'gem', sell: 750 },
+  slime: { name: 'Gosma', kind: 'res', sell: 5 },
+  fossil: { name: 'Fóssil', kind: 'artifact', sell: 300, desc: 'Um osso muito, muito antigo.' },
+  idol: { name: 'Ídolo Antigo', kind: 'artifact', sell: 600, desc: 'Esculpido por um povo esquecido.' },
+  crown: { name: 'Coroa do Rei Anão', kind: 'artifact', sell: 3000, desc: 'Tesouro do fundo da mina.' },
+  fish_legend0: { name: 'Carpa Dourada', kind: 'fish', sell: 1500, energy: 40, desc: 'Lendária da primavera.' },
+  fish_legend1: { name: 'Dourado Rei', kind: 'fish', sell: 2000, energy: 45, desc: 'Lendário do verão.' },
+  fish_legend2: { name: 'Pirarucu', kind: 'fish', sell: 2500, energy: 50, desc: 'Lendário do outono.' },
+  fish_legend3: { name: 'Peixe-Gelo', kind: 'fish', sell: 1800, energy: 40, desc: 'Lendário do inverno.' },
+  juice: { name: 'Suco', kind: 'artisan', mult: 2.25, desc: 'Feito no barril.' },
+  jam: { name: 'Conserva', kind: 'artisan', mult: 2, add: 50, desc: 'Feita no pote de conserva.' },
+  cheese: { name: 'Queijo', kind: 'artisan', sell: 230, energy: 50 },
+  mayo: { name: 'Maionese', kind: 'artisan', sell: 110, energy: 35 },
+  keg: { name: 'Barril', kind: 'place', place: 'keg', sell: 50, desc: 'Transforma qualquer colheita em suco (2 dias). Vale 2,25x.' },
+  jar: { name: 'Pote de Conserva', kind: 'place', place: 'jar', sell: 50, desc: 'Transforma qualquer colheita em conserva (1 dia). Vale 2x + 50.' },
+  cheese_press: { name: 'Prensa de Queijo', kind: 'place', place: 'cheese_press', sell: 50, desc: 'Leite vira queijo em 4 horas.' },
+  mayo_machine: { name: 'Máquina de Maionese', kind: 'place', place: 'mayo_machine', sell: 50, desc: 'Ovo vira maionese em 3 horas.' },
+  sprinkler3: { name: 'Aspersor de Ouro', kind: 'place', place: 'sprinkler3', sell: 300, desc: 'Rega sozinho uma área de 7x7 toda manhã.' },
+  statue: { name: 'Estátua do Vovô', kind: 'place', place: 'statue', sell: 1, desc: 'Presente do vovô. Toda manhã aparece uma gema nela.' },
+});
+
+CRAFTS.push(
+  { id: 'sprinkler3', qty: 1, ing: { gold: 2, iron: 2, amethyst: 1 } },
+  { id: 'keg', qty: 1, ing: { wood: 30, copper: 1, iron: 1 } },
+  { id: 'jar', qty: 1, ing: { wood: 20, stone: 10, copper: 2 } },
+  { id: 'cheese_press', qty: 1, ing: { wood: 25, stone: 25, copper: 3 } },
+  { id: 'mayo_machine', qty: 1, ing: { wood: 15, stone: 15, copper: 1, iron: 1 } },
+);
+
+// Máquinas: o que aceitam, o que produzem e em quantas horas de jogo
+const MACHINES = {
+  keg: { emoji: '🛢️', hint: 'Coloque qualquer colheita para fazer suco.', accepts: id => def(id).kind === 'crop', out: id => `juice~${baseOf(id)}`, hours: 48 },
+  jar: { emoji: '🫙', hint: 'Coloque qualquer colheita para fazer conserva.', accepts: id => def(id).kind === 'crop', out: id => `jam~${baseOf(id)}`, hours: 24 },
+  cheese_press: { emoji: '🧀', hint: 'Coloque leite para fazer queijo.', accepts: id => baseOf(id) === 'milk', out: () => 'cheese', hours: 4 },
+  mayo_machine: { emoji: '🥚', hint: 'Coloque um ovo para fazer maionese.', accepts: id => baseOf(id) === 'egg', out: () => 'mayo', hours: 3 },
+};
+
+const LEGENDS = ['fish_legend0', 'fish_legend1', 'fish_legend2', 'fish_legend3']; // um por estação
+const MINE_DEPTH = 40;
+// Recompensas dos baús a cada 10 andares
+const MINE_CHESTS = {
+  10: { gold: 500, sword: 2, items: [['gold', 5]] },
+  20: { gold: 1000, items: [['sprinkler3', 2], ['emerald', 2]] },
+  30: { gold: 2000, sword: 3, items: [['ruby', 3]] },
+  40: { gold: 5000, items: [['crown', 1], ['diamond', 3]] },
+};
+const SLIMES = {
+  green: { hp: 6, dmg: 8, speed: 22, xp: 5, color: ['#7ad35c', '#4caf3a', '#2f7a26'] },
+  blue: { hp: 14, dmg: 14, speed: 26, xp: 10, color: ['#8ad0ff', '#4a90e0', '#2a5aa8'] },
+  red: { hp: 26, dmg: 22, speed: 30, xp: 18, color: ['#ff8a80', '#e2402e', '#9a2018'] },
+};
+
+// Projetos do Vale: cestas de itens que restauram o vale. As três de colheita liberam a Estufa.
+// 'goldcrop' = colheita qualidade ouro; 'juice'/'jam' = qualquer suco/conserva
+const BUNDLES = [
+  { id: 'spring', name: 'Cesta da Primavera', icon: '🌸', items: [['carrot', 5], ['strawberry', 3], ['sunflower', 3]], gold: 800, give: [['seed_strawberry', 10]], gh: true },
+  { id: 'summer', name: 'Cesta do Verão', icon: '☀️', items: [['corn', 5], ['tomato', 5], ['melon', 2]], gold: 800, give: [['sprinkler2', 2]], gh: true },
+  { id: 'fall', name: 'Cesta do Outono', icon: '🍂', items: [['pumpkin', 2], ['corn', 5], ['carrot', 5]], gold: 800, give: [['sprinkler2', 2]], gh: true },
+  { id: 'fish', name: 'Cesta do Pescador', icon: '🎣', items: [['fish_sardine', 1], ['fish_carp', 1], ['fish_tilapia', 1], ['fish_catfish', 1]], gold: 500,
+    perk: 'rod', perkDesc: 'Vara de Fibra: o peixe morde mais rápido e lendários aparecem mais' },
+  { id: 'mine', name: 'Cesta do Minerador', icon: '⛏️', items: [['copper', 20], ['iron', 10], ['gold', 5], ['amethyst', 1]], gold: 1000,
+    perk: 'miner', perkDesc: '+50 de vida máxima e elevador para qualquer andar já alcançado' },
+  { id: 'artisan', name: 'Cesta do Artesão', icon: '🛢️', items: [['juice', 1], ['jam', 1], ['cheese', 1], ['mayo', 1]], gold: 1500,
+    perk: 'artisan', perkDesc: 'Produtos artesanais valem +25%' },
+  { id: 'quality', name: 'Cesta da Qualidade', icon: '⭐', items: [['goldcrop', 5]], gold: 2000, give: [['sprinkler3', 2]],
+    perk: 'luck', perkDesc: 'Mais chance de colher com qualidade ★' },
+];
+
+// Itens da coleção (o diário marca tudo que você já conseguiu)
+const COLLECTION = [
+  'carrot', 'strawberry', 'sunflower', 'corn', 'tomato', 'melon', 'pumpkin', 'egg', 'milk',
+  'fish_sardine', 'fish_carp', 'fish_tilapia', 'fish_catfish', ...LEGENDS,
+  'copper', 'iron', 'gold', 'amethyst', 'emerald', 'ruby', 'diamond', 'fossil', 'idol', 'crown',
+  'juice', 'jam', 'cheese', 'mayo',
+  'bread', 'soup', 'salad', 'omelet', 'grilled_fish', 'pamonha', 'pumpkin_soup', 'cake',
+];
+const COLLECTION_REWARDS = [
+  { pct: 25, gold: 1000 },
+  { pct: 50, gold: 0, items: [['sprinkler3', 2]] },
+  { pct: 75, gold: 5000 },
+  { pct: 100, gold: 20000 },
+];
+
+ACHIEVEMENTS.push(
+  { id: 'mine20', name: 'Explorador', desc: 'Chegue ao andar 20 da mina.', test: s => s.mineMax >= 20, prog: s => [s.mineMax, 20] },
+  { id: 'mine40', name: 'Fundo da Mina', desc: 'Chegue ao andar 40 da mina.', test: s => s.mineMax >= 40, prog: s => [s.mineMax, 40] },
+  { id: 'slayer', name: 'Caçador de Gosmas', desc: 'Derrote 50 monstros.', test: s => s.stats.kills >= 50, prog: s => [s.stats.kills, 50] },
+  { id: 'legend', name: 'Pescador Lendário', desc: 'Pesque um peixe lendário.', test: s => LEGENDS.some(l => s.found[l]) },
+  { id: 'artisan10', name: 'Artesão', desc: 'Produza 10 itens artesanais.', test: s => s.stats.artisan >= 10, prog: s => [s.stats.artisan, 10] },
+  { id: 'greenhouse', name: 'Estufa', desc: 'Restaure a estufa.', test: s => s.greenhouse },
+  { id: 'vale', name: 'Vale Restaurado', desc: 'Complete todos os Projetos do Vale.', test: s => BUNDLES.every(b => s.bundles[b.id] && s.bundles[b.id].done) },
+  { id: 'collector', name: 'Colecionador', desc: 'Complete a coleção.', test: s => COLLECTION.every(i => s.found[i]),
+    prog: s => [COLLECTION.filter(i => s.found[i]).length, COLLECTION.length] },
+  { id: 'candles', name: 'Orgulho do Vovô', desc: 'Receba 4 velas na avaliação do vovô.', test: s => s.bestCandles >= 4 },
+  { id: 'level20', name: 'Lenda Viva', desc: 'Chegue ao nível 20.', test: s => s.level >= 20, prog: s => [s.level, 20] },
+);

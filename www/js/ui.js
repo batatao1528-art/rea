@@ -88,8 +88,13 @@ const UI = (() => {
     set('energyTxt', `${Math.ceil(S.energy)}/${me}`);
     document.getElementById('energyPill').classList.toggle('low', S.energy < me * 0.2);
     set('goldTxt', money(S.gold));
+    const mh = maxHP(), showHP = scene === 'mine' || S.hp < mh;
+    document.getElementById('hpPill').classList.toggle('hidden', !showHP);
+    if (showHP) { set('hpFill', `${S.hp / mh * 100}%`, 'width'); set('hpTxt', `${Math.ceil(S.hp)}/${mh}`); }
+    document.getElementById('floorPill').classList.toggle('hidden', scene !== 'mine');
+    if (scene === 'mine' && mine) set('floorTxt', `Andar ${mine.floor}`);
     set('lvlTxt', `Nv ${S.level}`);
-    set('xpFill', S.level >= 10 ? '100%' : `${S.xp / xpNeed(S.level) * 100}%`, 'width');
+    set('xpFill', S.level >= MAX_LEVEL ? '100%' : `${S.xp / xpNeed(S.level) * 100}%`, 'width');
     set('dateTxt', `${SEASONS[S.season]}, Dia ${S.day}${festivalToday() ? ' 🎪' : ''}`);
     set('timeTxt', fmtTime(S.time));
     set('weatherIco', S.weather === 'rain' ? '🌧️' : S.weather === 'snow' ? '🌨️' : (S.time % 1440 >= 1140 || S.time >= 1440 ? '🌙' : '☀️'));
@@ -227,6 +232,8 @@ const UI = (() => {
     const rows = r.sales.map(s => `<div class="line">${icon(s.id)}${qBadge(s.id)}<span>${nameOf(s.id)} ×${s.qty}</span><b>${money(s.total)} 💰</b></div>`).join('');
     const w = { sun: '☀️ Sol', rain: '🌧️ Chuva (as plantas já amanhecem regadas!)', snow: '🌨️ Neve (os animais ficam dentro de casa)' }[S.weather];
     const notes = [];
+    if (r.inMine && r.passedOut) notes.push(`<p class="warn center">⛏️ Você desmaiou na mina.</p>`);
+    if (r.altar) notes.push(`<p class="center big-note">🕯️ Uma luz brilha no santuário ao lado da casa... O vovô quer ver como você está indo!</p>`);
     if (r.died) notes.push(`<p class="warn center">🥀 ${r.died} planta(s) morreram.</p>`);
     if (r.products) notes.push(`<p class="center">🥚 Seus animais produziram ${r.products} item(ns). Vá coletar!</p>`);
     if (r.expired) notes.push(`<p class="warn center">📋 ${r.expired} pedido(s) do quadro expiraram.</p>`);
@@ -289,7 +296,7 @@ const UI = (() => {
   const SHOP_TABS = {
     rosa: [['talk', '💬 Conversar'], ['seeds', '🌱 Sementes'], ['food', '🍞 Comida'], ['animals', '🐔 Animais'], ['up', '🛠️ Melhorias']],
     ze: [['talk', '💬 Conversar'], ['shop', '🎣 Loja do Zé']],
-    tiao: [['talk', '💬 Conversar'], ['shop', '⚒️ Ferraria']],
+    tiao: [['talk', '💬 Conversar'], ['shop', '⚒️ Ferraria'], ['up', '🛠️ Ferramentas']],
   };
   const NPC_STOCK = { ze: [['bait', 5]], tiao: [['sprinkler', 300], ['sprinkler2', 800], ['lamp', 250], ['fence_item', 10]] };
   const NPC_BUYS = { ze: id => def(id).kind === 'fish', tiao: id => ['copper', 'iron'].includes(baseOf(id)) };
@@ -345,7 +352,7 @@ const UI = (() => {
             <b>${money(pp)} 💰</b><button class="btn sm" data-animal="${type}" data-p="${pp}" ${why || S.gold < pp ? 'disabled' : ''}>Comprar</button></div>`;
         }).join('') + buyRow('hay', ITEMS.hay.price);
       } else if (tab === 'up') {
-        body = UPGRADES.filter(u => !u.need || u.need()).map(u => {
+        body = UPGRADES.filter(u => u.shop === id && (!u.need || u.need())).map(u => {
           const mats = Object.entries(u.mats).map(([m, q]) => `<span class="ing ${countItem(m) >= q ? 'ok' : 'no'}">${icon(m, 'px tiny')}${countItem(m)}/${q}</span>`).join(' ');
           const ok = S.gold >= u.cost && hasAll(u.mats);
           return `<div class="line">${icon(u.icon)}<span>${u.name}<small>${u.desc}</small><small class="mats">${mats}</small></span>
@@ -399,24 +406,104 @@ const UI = (() => {
   }
 
   // ---------------------------------------------------------------- quadro de pedidos
-  function openBoard() {
+  function openBoard(startTab) {
+    let tab = startTab || 'quests';
     const render = () => {
-      $('#modalBody').innerHTML = `<p class="muted center">Os vizinhos deixam pedidos aqui. Entregue a tempo para ganhar ouro e amizade!</p>` +
-        (S.quests.map(q => {
-          const have = countItem(q.item), N = NPCS[q.from];
-          return `<div class="line">${icon(ingIcon(q.item))}<span>${N.name} precisa de ${q.qty}× ${ingName(q.item)}
-            <small>Você tem ${have}/${q.qty} · ⏳ ${q.days} dia(s) · +♥ ${N.name}</small></span>
-            <b>${money(q.reward)} 💰</b><button class="btn sm" data-q="${q.id}" ${have >= q.qty ? '' : 'disabled'}>Entregar</button></div>`;
-        }).join('') || '<p class="center">Nenhum pedido hoje. Volte amanhã!</p>') +
-        `<p class="muted center">Pedidos concluídos: ${S.stats.quests}</p>`;
+      let body;
+      if (tab === 'quests') {
+        body = `<p class="muted center">Os vizinhos deixam pedidos aqui. Entregue a tempo para ganhar ouro e amizade!</p>` +
+          (S.quests.map(q => {
+            const have = countItem(q.item), N = NPCS[q.from];
+            return `<div class="line">${icon(ingIcon(q.item))}<span>${N.name} precisa de ${q.qty}× ${ingName(q.item)}
+              <small>Você tem ${have}/${q.qty} · ⏳ ${q.days} dia(s) · +♥ ${N.name}</small></span>
+              <b>${money(q.reward)} 💰</b><button class="btn sm" data-q="${q.id}" ${have >= q.qty ? '' : 'disabled'}>Entregar</button></div>`;
+          }).join('') || '<p class="center">Nenhum pedido hoje. Volte amanhã!</p>') +
+          `<p class="muted center">Pedidos concluídos: ${S.stats.quests}</p>`;
+      } else {
+        const done = BUNDLES.filter(b => bundleState(b.id).done).length;
+        body = `<p class="muted center">Restaure o vale entregando cestas de itens. As três cestas de colheita restauram a <b>Estufa</b>. Completas: ${done}/${BUNDLES.length}</p>` +
+          BUNDLES.map(b => {
+            const st = bundleState(b.id);
+            const rows = b.items.map(([want, need], i) => {
+              const left = bundleNeed(b, i), have = countItem(want);
+              return `<div class="line">${icon(ingIcon(want))}<span>${ingName(want)}<small>${need - left}/${need} entregue · você tem ${have}</small></span>
+                ${left > 0 ? `<button class="btn sm" data-b="${b.id}" data-i="${i}" ${have > 0 ? '' : 'disabled'}>Doar</button>` : '<b class="ok">✔</b>'}</div>`;
+            }).join('');
+            const reward = [`${money(b.gold)} 💰`, ...(b.give || []).map(([g, q]) => `${ITEMS[g].name} ×${q}`), b.perkDesc].filter(Boolean).join(' · ');
+            return `<div class="bundle ${st.done ? 'done' : ''}"><h4><span>${b.icon} ${b.name}</span>${st.done ? '<span class="ok">✔ Completa</span>' : ''}</h4>
+              ${st.done ? '' : rows}<small class="muted">Recompensa: ${reward}</small></div>`;
+          }).join('');
+      }
+      $('#modalBody').innerHTML = tabsHTML([['quests', '📋 Pedidos'], ['bundles', '🧺 Projetos do Vale']], tab) + body;
     };
-    openModal('📋 Quadro de Pedidos', '', { wide: true, onRefresh: render });
+    openModal('📋 Quadro do Vale', '', { wide: true, onRefresh: render });
     render();
     $('#modalBody').onclick = e => {
-      const b = e.target.closest('button[data-q]'); if (!b) return;
-      if (deliverQuest(+b.dataset.q)) toast('📋 Pedido entregue! Obrigado(a)!');
+      const t = e.target.closest('[data-tab]');
+      if (t) { tab = t.dataset.tab; Sound.play('click'); render(); return; }
+      const q = e.target.closest('button[data-q]');
+      if (q && deliverQuest(+q.dataset.q)) toast('📋 Pedido entregue! Obrigado(a)!');
+      const b = e.target.closest('button[data-b]');
+      if (b) { const n = donate(b.dataset.b, +b.dataset.i); if (n) toast(`🧺 Você doou ${n} item(ns).`); }
       refresh(); render();
     };
+  }
+
+  // ---------------------------------------------------------------- mina (elevador)
+  function openMine() {
+    const floors = elevatorFloors();
+    openModal('⛏️ Mina do Vale', `
+      <p class="center">Uma mina antiga com ${MINE_DEPTH} andares. Quebre pedras para achar a <b>escada</b> que desce.
+      Quanto mais fundo, mais <b>ouro</b> e <b>gemas</b>... e monstros mais fortes!</p>
+      <p class="muted center">Vida ❤️ ${Math.ceil(S.hp)}/${maxHP()} · Mais fundo já alcançado: ${S.mineMax || 0} · Baús a cada 10 andares</p>
+      <h3>🛗 Elevador</h3>
+      <div class="elev">${floors.map(f => `<button class="btn sm ${f % 10 === 0 ? '' : 'alt'}" data-f="${f}">${f === 1 ? 'Entrada' : 'Andar ' + f}</button>`).join('')}</div>
+      <p class="muted center">Dica: leve comida! Comer recupera a vida. Desmaiar na mina custa ouro.</p>`, { wide: true });
+    $('#modalBody').onclick = e => {
+      const b = e.target.closest('button[data-f]'); if (!b) return;
+      closeModal(true); enterMine(+b.dataset.f);
+    };
+  }
+
+  // ---------------------------------------------------------------- santuário do vovô
+  function openAltar() {
+    if (S.year < 2) {
+      openModal('🕯️ Santuário do Vovô', `<p class="center">Uma pequena homenagem ao seu avô, com quatro velas apagadas.</p>
+        <p class="center muted">"Quando chegar a primavera do segundo ano, venha me mostrar o que fez da fazenda." — bilhete do vovô</p>`);
+      return;
+    }
+    const can = S.evalKey !== evalKey();
+    const show = ev => `<div class="candles">${'🕯️'.repeat(ev.candles)}${'▫️'.repeat(4 - ev.candles)}</div>` +
+      ev.rows.map(([l, v, m]) => `<div class="line"><span>${l}</span><b>${v}/${m}</b></div>`).join('') +
+      `<div class="line total"><span>Pontuação</span><b>${ev.total}/15</b></div>`;
+    const render = (ev, fresh) => {
+      const letter = !ev ? '' : ev.candles >= 4 ? 'Meu neto(a)... você superou todos os meus sonhos. A fazenda está mais linda do que nunca. Tenho muito orgulho de você! Guarde esta estátua como lembrança minha.'
+        : ev.candles === 3 ? 'Que trabalho bonito! A fazenda está prosperando. Continue assim, falta pouco!'
+        : ev.candles === 2 ? 'Bom começo! Mas ainda há muito a fazer. Cuide dos vizinhos, explore a mina e complete os projetos do vale.'
+        : 'A fazenda ainda precisa de muito carinho. Não desanime: plante, colha e faça amigos!';
+      $('#modalBody').innerHTML = (ev ? show(ev) + `<div class="speech">${letter}</div>` : '<p class="center">O santuário espera sua visita.</p>') +
+        (fresh && fresh.reward ? '<p class="center big-note">🗿 Você recebeu a Estátua do Vovô! Coloque na fazenda: toda manhã aparece uma gema nela.</p>' : '') +
+        `<div class="row center">${can ? '<button class="btn big" data-a="eval">🕯️ Pedir avaliação</button>' : '<p class="muted center">Você pode pedir uma nova avaliação a cada estação.</p>'}</div>`;
+    };
+    openModal('🕯️ Santuário do Vovô', '', { wide: true });
+    render(S.lastEval, null);
+    $('#modalBody').onclick = e => {
+      if (e.target.closest('button')?.dataset.a !== 'eval' || S.evalKey === evalKey()) return;
+      const r = doEvaluation();
+      render(r, r);
+      refresh();
+    };
+  }
+
+  function ending() {
+    openModal('🌻 O Vale Floresceu!', `<div class="ending">
+      <p>Com o seu trabalho, o Vale Florido voltou a ser o lugar mais bonito da região.</p>
+      <p>A Dona Rosa, o Seu Zé e o Tião prepararam uma grande festa em sua homenagem! 🎉</p>
+      <p><b>+10.000 💰</b> de presente dos vizinhos.</p>
+      <p class="muted">O jogo continua: complete a coleção, chegue ao nível 20, explore o fundo da mina e conquiste as 4 velas do vovô no santuário!</p>
+      <div class="row center"><button class="btn big" data-a="ok">Obrigado, vale! 💚</button></div></div>`, { noClose: true });
+    Sound.play('level');
+    $('#modalBody').onclick = e => { if (e.target.closest('button')?.dataset.a === 'ok') closeModal(true); };
   }
 
   // ---------------------------------------------------------------- animais
@@ -568,25 +655,48 @@ const UI = (() => {
   }
 
   function openAchievements() {
-    const rows = ACHIEVEMENTS.map(a => {
-      const ok = S.ach[a.id], pr = !ok && a.prog ? a.prog(S) : null;
-      return `<div class="line ach ${ok ? 'got' : ''}"><span class="emo">${ok ? '🏆' : '🔒'}</span><span>${a.name}<small>${a.desc}${pr ? ` (${money(Math.min(pr[0], pr[1]))}/${money(pr[1])})` : ''}</small></span></div>`;
-    }).join('');
-    const friends = Object.keys(NPCS).map(id => `<div class="line"><span>${NPCS[id].name}<small>${NPCS[id].role}</small></span>${heartsHTML(hearts(id))}</div>`).join('');
-    const st = S.stats;
-    openModal('🏆 Conquistas e diário', `
-      <div class="cols"><div>${rows}</div><div>
-        <h3>📖 Diário</h3>
-        <div class="line"><span>Dias na fazenda</span><b>${(S.year - 1) * 112 + S.season * 28 + S.day}</b></div>
-        <div class="line"><span>Plantas colhidas</span><b>${st.harvest}</b></div>
-        <div class="line"><span>Peixes pescados</span><b>${st.fish}</b></div>
-        <div class="line"><span>Minérios</span><b>${st.ore}</b></div>
-        <div class="line"><span>Pratos cozinhados</span><b>${st.cooked}</b></div>
-        <div class="line"><span>Pedidos entregues</span><b>${st.quests}</b></div>
-        <div class="line"><span>Animais</span><b>${S.animals.length}</b></div>
-        <div class="line"><span>Total vendido</span><b>${money(st.earned)} 💰</b></div>
-        <h3>💞 Amizades</h3>${friends}
-      </div></div>`, { wide: true });
+    let tab = 'ach';
+    const render = () => {
+      let body;
+      const st = S.stats;
+      if (tab === 'ach') {
+        body = ACHIEVEMENTS.map(a => {
+          const ok = S.ach[a.id], pr = !ok && a.prog ? a.prog(S) : null;
+          return `<div class="line ach ${ok ? 'got' : ''}"><span class="emo">${ok ? '🏆' : '🔒'}</span><span>${a.name}<small>${a.desc}${pr ? ` (${money(Math.min(pr[0], pr[1]))}/${money(pr[1])})` : ''}</small></span></div>`;
+        }).join('');
+      } else if (tab === 'col') {
+        const got = COLLECTION.filter(i => S.found[i]).length, pct = Math.floor(got / COLLECTION.length * 100);
+        const next = COLLECTION_REWARDS.find(r => !S.colRewards[r.pct]);
+        body = `<p class="center"><b>${got}/${COLLECTION.length}</b> itens descobertos (${pct}%)${next ? ` · próxima recompensa em ${next.pct}%` : ' · coleção completa! 🎉'}</p>
+          <div class="colgrid">${COLLECTION.map(i => `<div class="cell ${S.found[i] ? '' : 'miss'}" title="${S.found[i] ? ingName(i) : '???'}">${icon(ingIcon(i))}</div>`).join('')}</div>
+          <p class="muted center">Toque nos itens que já tem para ver o nome. Peixes lendários aparecem a partir do nível 6, um por estação.</p>`;
+      } else {
+        const friends = Object.keys(NPCS).map(id => `<div class="line"><span>${NPCS[id].name}<small>${NPCS[id].role}</small></span>${heartsHTML(hearts(id))}</div>`).join('');
+        body = `<div class="cols"><div>
+          <div class="line"><span>Dias na fazenda</span><b>${dayIndex() + 1}</b></div>
+          <div class="line"><span>Plantas colhidas</span><b>${st.harvest}</b></div>
+          <div class="line"><span>Peixes pescados</span><b>${st.fish}</b></div>
+          <div class="line"><span>Minérios e gemas</span><b>${st.ore}</b></div>
+          <div class="line"><span>Monstros derrotados</span><b>${st.kills}</b></div>
+          <div class="line"><span>Andar mais fundo da mina</span><b>${S.mineMax}</b></div>
+          <div class="line"><span>Pratos cozinhados</span><b>${st.cooked}</b></div>
+          <div class="line"><span>Produtos artesanais</span><b>${st.artisan}</b></div>
+          <div class="line"><span>Pedidos entregues</span><b>${st.quests}</b></div>
+          <div class="line"><span>Total vendido</span><b>${money(st.earned)} 💰</b></div>
+        </div><div><h3>💞 Amizades</h3>${friends}
+          <h3>✨ Bênçãos do vale</h3>${BUNDLES.filter(b => b.perk && S.perks[b.perk]).map(b => `<div class="line"><span>${b.icon} ${b.perkDesc}</span></div>`).join('') || '<p class="muted">Complete Projetos do Vale para ganhar bênçãos.</p>'}
+        </div></div>`;
+      }
+      $('#modalBody').innerHTML = tabsHTML([['ach', '🏆 Conquistas'], ['col', '📚 Coleção'], ['diary', '📖 Diário']], tab) + body;
+    };
+    openModal('🏆 Conquistas e diário', '', { wide: true });
+    render();
+    $('#modalBody').onclick = e => {
+      const t = e.target.closest('[data-tab]');
+      if (t) { tab = t.dataset.tab; Sound.play('click'); render(); return; }
+      const c = e.target.closest('.colgrid .cell');
+      if (c) toast(c.title);
+    };
   }
 
   function help() {
@@ -604,6 +714,10 @@ const UI = (() => {
           <li>📋 <b>Quadro de Pedidos</b> ao lado da barraca: entregue itens para ganhar ouro e amizade.</li>
           <li>💬 Converse e dê presentes ao <b>Seu Zé</b> (lago) e ao <b>Tião</b> (pedreira). Amigos dão presentes e descontos.</li>
           <li>🎪 Todo <b>dia 14</b> tem festival na praça. Participe dos concursos!</li>
+          <li>⛏️ A <b>mina</b> fica na pedreira (nordeste): 40 andares com ouro, gemas, baús e monstros. Use a espada!</li>
+          <li>🛢️ Fabrique <b>máquinas</b> (barril, pote, prensa, maionese) para transformar produtos em itens valiosos.</li>
+          <li>🧺 No quadro, os <b>Projetos do Vale</b> restauram a <b>estufa</b> (planta o ano todo) e dão bênçãos.</li>
+          <li>🕯️ A partir do 2º ano, peça a <b>avaliação do vovô</b> no santuário ao lado da casa. Consegue as 4 velas?</li>
         </ol>
         <p><b>Controles (toque):</b> arraste no mapa para andar ou toque num tile para ir até lá. Toque num tile ao seu lado para usar o item nele. O <b>botão grande</b> faz a ação do momento.</p>
         <p><b>Teclado:</b> WASD/setas andam · Espaço/E ação · 1–6 hotbar · I mochila · Esc menu.</p>
@@ -637,7 +751,7 @@ const UI = (() => {
 
   return {
     init, tick, refresh, toast, joystick, fade, daySummary, openHouse, openBin, openNPC, openBoard, openAnimals,
-    openFestival, openBag, openMenu, intro, handleKey,
+    openFestival, openBag, openMenu, openMine, openAltar, ending, intro, handleKey,
     blocking: () => modalOpen || titleOpen,
     inGame: () => !titleOpen,
   };

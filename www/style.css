@@ -223,3 +223,17 @@ em.new { color: #e0602a; font-size: 12px; }
 .line.ach { opacity: .6; }
 .line.ach.got { opacity: 1; }
 .line > span.emo { flex: 0 0 auto; font-size: 22px; }
+
+.bar > div#energyFill { background: linear-gradient(#ffe88a, #e0aa20); }
+#energyPill.low .bar > div#energyFill { background: #ff3030; }
+.bar.hp > div { background: linear-gradient(#ff7a6a, #d8443a); }
+#floorPill { background: #3a3028; color: #fff6dc; border-color: #1e1a16; }
+.elev { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.bundle { border: 3px solid var(--wood-l); border-radius: 10px; padding: 6px 8px; margin: 6px 0; background: #fffaf0; }
+.bundle.done { border-color: var(--green); background: #eefbe6; }
+.bundle h4 { margin: 2px 0 4px; font-size: 15px; display: flex; justify-content: space-between; gap: 6px; }
+.colgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 5px; }
+.colgrid .cell img.px { width: 75%; height: 75%; }
+.colgrid .cell.miss img { filter: brightness(0) opacity(.35); }
+.candles { font-size: 34px; text-align: center; letter-spacing: 6px; }
+.ending { text-align: center; font-size: 16px; line-height: 1.5; }

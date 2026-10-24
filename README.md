@@ -28,13 +28,21 @@ som (efeitos e trilha lo-fi de violão/ukulele) são **gerados por código**, en
 - **Moradores** 💬: Dona Rosa (loja), Seu Zé (pescador, vende isca e compra peixe) e Tião (ferreiro, vende aspersores e
   compra minério). Converse e dê presentes: com corações eles dão presentes e 10% de desconto.
 - **Decoração** 🔨: fabrique cercas, caminhos de pedra, canteiros de flores e lampiões (que iluminam a noite).
-- **Conquistas e diário** 🏆: 18 conquistas, estatísticas e amizades.
+- **Conquistas e diário** 🏆: 28 conquistas, coleção, estatísticas e amizades.
 - **Festivais** 🎪 todo dia 14: Festa das Flores, Festival da Pesca, Feira da Colheita e Noite das Lanternas.
+- **Mina** ⛏️ (entrada na pedreira): 40 andares gerados a cada visita, com ouro, gemas (ametista, esmeralda, rubi,
+  diamante), artefatos, baús a cada 10 andares, elevador a cada 5 e monstros (gosmas) para enfrentar com a espada.
+- **Ferramentas de ouro** e espadas de ferro/ouro com o Tião; **Aspersor de Ouro** (7x7).
+- **Máquinas artesanais** 🛢️: Barril (suco), Pote de Conserva, Prensa de Queijo e Máquina de Maionese.
+- **Projetos do Vale** 🧺: 7 cestas no quadro. As de colheita restauram a **Estufa** (planta qualquer coisa o ano todo);
+  as outras dão bênçãos (vara de fibra, +vida e elevador livre, artesanato +25%, mais qualidade). Todas = final do jogo.
+- **Coleção** 📚 de 39 itens (inclui 4 **peixes lendários**, um por estação) com recompensas a 25/50/75/100%.
+- **Níveis até 20** e **Avaliação do Vovô** 🕯️ no santuário a partir do 2º ano: conquiste as 4 velas e ganhe a Estátua do Vovô.
 - **Tempo**: 1 minuto real = 1 hora no jogo. Dormir (ou desmaiar às 02:00) chama o `NextDay()`.
   4 estações de 28 dias, com chuva (que rega tudo) e neve.
 - **Energia**: cada ação gasta energia; comer recupera e dormir restaura 100%.
 - **Economia e melhorias**: Caixa de Envio (paga de noite), ferramentas de ferro, mochilas e expansão da fazenda.
-- **Progressão**: XP por cultivo, pesca e mineração; até o nível 10.
+- **Progressão**: XP por cultivo, pesca, mineração e combate; até o nível 20.
 - **Salvamento automático** ao dormir e ao sair do app.
 
 ## Controles
