@@ -54,8 +54,8 @@ TOQUE PRA COMEÇAR → corre → desvia → "POR UM TRIZ!" (combo) → acelera
 
 **Tempo entre morte e nova partida: < 1,5 segundo.** Um toque na tela de game over já reinicia. Nada de menus no caminho.
 
-### Clímax: Alcançar o ônibus
-A cada ~1000m o ônibus para num ponto. Se você chegar, Zé pula pra dentro, as portas fecham, tela de "CHEGUEI!" + confete — e o próximo ônibus sai (nova fase, mais rápida, cenário muda: centro → praia → favela colorida → Tóquio → Nova York). Isso dá **meta de curto prazo** dentro de um jogo infinito.
+### Clímax: o ônibus que NUNCA para
+O Zé **jamais** alcança o ônibus — essa é a piada e o motor do vício. O ônibus vai se aproximando (mais rápido quando o jogador faz "POR UM TRIZ!"), acende a **luz de freio** (esperança!), chega a 2–8m… e no último segundo fecha a porta e arranca, soltando fumaça na cara do Zé ("VOLTA AQUI!", "PARA, MOÇO!"). Cada fuga dá +50 pontos; uma fuga a menos de 2,5m vira "POR UM FIO!!!" (+150) — o momento perfeito para gravar a tela. O recorde secundário do jogo é **"mais perto do busão"**.
 
 ---
 
