@@ -16,18 +16,25 @@ som (efeitos e trilha lo-fi de violão/ukulele) são **gerados por código**, en
 
 - **Fazenda**: arar com a enxada, plantar, regar (encha o regador no lago), colher.
   Cada tile arado guarda `tile_x, tile_y, is_tilled, is_watered, crop_type, growth_stage, days_planted`.
-- **Plantas** (5 estágios: semente, broto, médio, maduro, seco):
-  🥕 Cenoura (3 dias) · 🌽 Milho (4 dias) · 🍅 Tomate (5 dias, produz de novo a cada 3) · 🍓 Morango (6 dias).
-  Planta que fica 3 dias sem água seca; no inverno tudo morre.
-- **Tempo**: 1 minuto real = 1 hora no jogo. Dormir (ou desmaiar às 02:00) chama o `NextDay()`:
-  as plantas regadas crescem, a Caixa de Envio é vendida e a energia é restaurada.
+- **Plantas por estação** (5 estágios: semente, broto, médio, maduro, seco):
+  🌸 Primavera: Cenoura, Morango, Girassol · ☀️ Verão: Milho, Tomate, Melancia, Girassol ·
+  🍂 Outono: Cenoura, Milho, Tomate, Abóbora. Planta 3 dias sem água seca; fora da estação, morre na virada.
+- **Qualidade ★**: colheitas, peixes, ovos e leite podem sair prata (+25%) ou ouro (+50%).
+- **Aspersores** 💦: fabricados com cobre/ferro e pedra, regam sozinhos toda manhã (3x3 ou 5x5).
+- **Animais** 🐔🐄: construa Galinheiro e Estábulo, compre galinhas e vacas, alimente com feno,
+  faça carinho e colete ovos e leite todo dia (mais amizade = mais qualidade).
+- **Quadro de Pedidos** 📋: os vizinhos pedem itens com prazo; entregue para ganhar ouro e amizade.
+- **Cozinha** 🍳: fogão na casa com 6 receitas (salada, omelete, peixe assado, pamonha, sopa de abóbora, bolo de morango).
+- **Moradores** 💬: Dona Rosa (loja), Seu Zé (pescador, vende isca e compra peixe) e Tião (ferreiro, vende aspersores e
+  compra minério). Converse e dê presentes: com corações eles dão presentes e 10% de desconto.
+- **Decoração** 🔨: fabrique cercas, caminhos de pedra, canteiros de flores e lampiões (que iluminam a noite).
+- **Conquistas e diário** 🏆: 18 conquistas, estatísticas e amizades.
+- **Festivais** 🎪 todo dia 14: Festa das Flores, Festival da Pesca, Feira da Colheita e Noite das Lanternas.
+- **Tempo**: 1 minuto real = 1 hora no jogo. Dormir (ou desmaiar às 02:00) chama o `NextDay()`.
   4 estações de 28 dias, com chuva (que rega tudo) e neve.
 - **Energia**: cada ação gasta energia; comer recupera e dormir restaura 100%.
-- **Economia**: venda na 📦 Caixa de Envio (pago de noite) e compre na barraca da Dona Rosa:
-  sementes, comida e melhorias (enxada de ferro, regador grande, machado e picareta de ferro, mochilas maiores
-  e a **expansão da fazenda**).
-- **Progressão**: XP por cultivo, pesca e mineração; até o nível 10 (+5 de energia máxima por nível).
-- **Pesca** no lago (toque quando aparecer "!") e **mineração** na pedreira (cobre e ferro).
+- **Economia e melhorias**: Caixa de Envio (paga de noite), ferramentas de ferro, mochilas e expansão da fazenda.
+- **Progressão**: XP por cultivo, pesca e mineração; até o nível 10.
 - **Salvamento automático** ao dormir e ao sair do app.
 
 ## Controles
@@ -68,10 +75,11 @@ cd android && ./gradlew assembleDebug
 www/
   index.html        página do jogo e HUD
   style.css         interface (HUD, hotbar, botão de ação, janelas)
-  js/sprites.js     arte em pixel art gerada por código (terreno, objetos, plantas, ícones, personagem)
+  js/data.js        conteúdo: plantas, itens, receitas, moradores, conquistas e festivais
+  js/sprites.js     arte em pixel art gerada por código (terreno, objetos, plantas, ícones, personagens, animais)
   js/audio.js       efeitos sonoros e trilha sintetizados (Web Audio)
-  js/game.js        mapa, fazenda, tempo/dias, jogador, ações, pesca, renderização e controles
-  js/ui.js          HUD, loja, caixa de envio, mochila, menus
+  js/game.js        mapa, fazenda, tempo/dias, jogador, ações, animais, pedidos, festivais, renderização e controles
+  js/ui.js          HUD e janelas (lojas, moradores, animais, pedidos, fogão, fabricação, conquistas)
 android-template/   MainActivity com tela cheia imersiva
 capacitor.config.json, package.json
 ```

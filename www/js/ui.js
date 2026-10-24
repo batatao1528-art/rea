@@ -1,13 +1,19 @@
 'use strict';
-/* Vale Florido — interface: HUD, hotbar, botão de ação, loja, caixa de envio, mochila e menus. */
+/* Vale Florido — interface: HUD, hotbar, botão de ação e todas as janelas (loja, moradores, animais, pedidos...). */
 const UI = (() => {
   const $ = s => document.querySelector(s);
-  let modalOpen = false, titleOpen = true, modalOnClose = null;
-  let toastTimer = null, lastAction = '', hud = {};
+  let modalOpen = false, titleOpen = true, modalOnClose = null, modalOnRefresh = null;
+  let toastTimer = null, toastQueue = [], lastAction = '', hud = {};
   let swapFrom = null;
 
-  const icon = (id, cls = 'px') => `<img class="${cls}" src="${Sprites.iconURL(id)}" alt="">`;
-  const money = n => n.toLocaleString('pt-BR');
+  const icon = (id, cls = 'px') => `<img class="${cls}" src="${Sprites.iconURL(iconId(id))}" alt="">`;
+  const qBadge = id => (qualOf(id) ? `<span class="q q${qualOf(id)}">★</span>` : '');
+  const money = n => Math.round(n).toLocaleString('pt-BR');
+  const heartsHTML = (n, max = 10) => `<span class="hearts">${'♥'.repeat(n)}<i>${'♥'.repeat(Math.max(0, max - n))}</i></span>`;
+  const ingHTML = ing => Object.entries(ing).map(([id, q]) => {
+    const have = countItem(id);
+    return `<span class="ing ${have >= q ? 'ok' : 'no'}">${icon(ingIcon(id), 'px tiny')}${have}/${q}</span>`;
+  }).join(' ');
 
   function init() {
     // hotbar: 6 espaços + mochila
@@ -84,7 +90,7 @@ const UI = (() => {
     set('goldTxt', money(S.gold));
     set('lvlTxt', `Nv ${S.level}`);
     set('xpFill', S.level >= 10 ? '100%' : `${S.xp / xpNeed(S.level) * 100}%`, 'width');
-    set('dateTxt', `${SEASONS[S.season]}, Dia ${S.day}`);
+    set('dateTxt', `${SEASONS[S.season]}, Dia ${S.day}${festivalToday() ? ' 🎪' : ''}`);
     set('timeTxt', fmtTime(S.time));
     set('weatherIco', S.weather === 'rain' ? '🌧️' : S.weather === 'snow' ? '🌨️' : (S.time % 1440 >= 1140 || S.time >= 1440 ? '🌙' : '☀️'));
     if (!isPaused()) {
@@ -100,17 +106,18 @@ const UI = (() => {
     }
   }
 
+  function slotHTML(it) {
+    if (!it) return '';
+    let h = icon(it.id) + qBadge(it.id);
+    if (def(it.id).kind !== 'tool') h += `<span class="qty">${it.qty}</span>`;
+    if (it.id === 'can') h += `<span class="meter"><i style="width:${S.water / waterCap() * 100}%"></i></span>`;
+    return h;
+  }
+
   function refresh() {
     if (!S) return;
-    const slots = document.querySelectorAll('#hotbar .slot:not(.bag)');
-    slots.forEach((b, i) => {
-      const it = S.inv[i];
-      let h = '';
-      if (it) {
-        h = icon(iconId(it.id));
-        if (ITEMS[it.id].kind !== 'tool') h += `<span class="qty">${it.qty}</span>`;
-        if (it.id === 'can') h += `<span class="meter"><i style="width:${S.water / waterCap() * 100}%"></i></span>`;
-      }
+    document.querySelectorAll('#hotbar .slot:not(.bag)').forEach((b, i) => {
+      const h = slotHTML(S.inv[i]);
       if (b.innerHTML !== h) b.innerHTML = h;
       b.classList.toggle('sel', S.sel === i);
     });
@@ -118,12 +125,18 @@ const UI = (() => {
     if (modalOpen && modalOnRefresh) modalOnRefresh();
   }
 
+  // Avisos em fila para um não apagar o outro
   function toast(msg) {
+    if (toastQueue.length > 4) toastQueue.shift();
+    toastQueue.push(msg);
+    if (!toastTimer) nextToast();
+  }
+  function nextToast() {
     const t = $('#toast');
-    t.textContent = msg;
+    if (!toastQueue.length) { t.classList.remove('show'); toastTimer = null; return; }
+    t.textContent = toastQueue.shift();
     t.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+    toastTimer = setTimeout(nextToast, toastQueue.length ? 1800 : 2600);
   }
 
   function joystick(j) {
@@ -136,7 +149,6 @@ const UI = (() => {
   }
 
   // ---------------------------------------------------------------- modais
-  let modalOnRefresh = null;
   function openModal(title, html, { onClose = null, onRefresh = null, wide = false, noClose = false } = {}) {
     modalOpen = true;
     modalOnClose = onClose;
@@ -144,6 +156,7 @@ const UI = (() => {
     input.actionHeld = false; input.joy = null; joystick(null);
     $('#modalTitle').innerHTML = title;
     $('#modalBody').innerHTML = html;
+    $('#modalBody').onclick = null;
     $('#modal .panel').classList.toggle('wide', wide);
     $('#modalClose').classList.toggle('hidden', noClose);
     $('#modal').classList.remove('hidden');
@@ -166,34 +179,66 @@ const UI = (() => {
       if (a === 'y') { closeModal(true); yes(); } else if (a === 'n') closeModal(true);
     };
   }
+  const tabsHTML = (tabs, cur) => `<div class="tabs">${tabs.map(([id, l]) => `<button class="tab ${cur === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('')}</div>`;
 
-  // ---------------------------------------------------------------- dormir
-  function askSleep() {
+  // ---------------------------------------------------------------- casa: dormir e cozinhar
+  function openHouse() {
     const late = S.time >= 18 * 60;
-    openModal('🛏️ Sua cama', `<p class="center">${late ? 'Que dia longo! ' : ''}Dormir até amanhã?<br><small>O jogo é salvo e os itens da Caixa de Envio são vendidos.</small></p>
-      <div class="row center"><button class="btn" data-a="y">😴 Dormir</button><button class="btn alt" data-a="n">Ainda não</button></div>`);
+    openModal('🏠 Sua casa', `<p class="center">${late ? 'Que dia longo! ' : ''}O que vai fazer?</p>
+      <div class="menu">
+        <button class="btn" data-a="sleep">😴 Dormir até amanhã</button>
+        <button class="btn alt" data-a="cook">🍳 Cozinhar no fogão</button>
+      </div>
+      <p class="muted center">Dormir salva o jogo e vende os itens da Caixa de Envio.</p>`);
     $('#modalBody').onclick = e => {
       const a = e.target.closest('button')?.dataset.a;
-      if (a === 'y') { closeModal(true); sleep(false); } else if (a === 'n') closeModal(true);
+      if (a === 'sleep') { closeModal(true); sleep(false); }
+      if (a === 'cook') { Sound.play('click'); openCook(); }
+    };
+  }
+
+  function openCook() {
+    const render = () => {
+      $('#modalBody').innerHTML = `<p class="muted center">Comida caseira dá muita energia e vale bem mais na venda!</p>` +
+        RECIPES.map((r, i) => {
+          const d = ITEMS[r.id];
+          return `<div class="line">${icon(r.id)}<span>${d.name}${S.flags['cook_' + r.id] ? '' : ' <em class="new">novo!</em>'}
+            <small>+${d.energy} ❤️ · vende ${d.sell} 💰</small><small class="mats">${ingHTML(r.ing)}</small></span>
+            <button class="btn sm" data-i="${i}" ${hasAll(r.ing) ? '' : 'disabled'}>Cozinhar</button></div>`;
+        }).join('');
+    };
+    openModal('🍳 Fogão', '', { wide: true, onRefresh: render });
+    render();
+    $('#modalBody').onclick = e => {
+      const b = e.target.closest('button[data-i]'); if (!b) return;
+      const r = RECIPES[+b.dataset.i];
+      if (!hasRoom(r.id)) { toast('🎒 Mochila cheia!'); return; }
+      if (cook(r)) toast(`🍳 Você fez: ${ITEMS[r.id].name}!`);
+      refresh();
     };
   }
 
   function fade(on, cb) {
-    const f = $('#fade');
-    f.classList.toggle('on', on);
+    $('#fade').classList.toggle('on', on);
     if (cb) setTimeout(cb, 650);
   }
 
   function daySummary(r, done) {
-    const rows = r.sales.map(s => `<div class="line">${icon(iconId(s.id))}<span>${ITEMS[s.id].name} ×${s.qty}</span><b>${money(s.total)} 💰</b></div>`).join('');
-    const w = { sun: '☀️ Sol', rain: '🌧️ Chuva (as plantas já amanhecem regadas!)', snow: '🌨️ Neve' }[S.weather];
+    const rows = r.sales.map(s => `<div class="line">${icon(s.id)}${qBadge(s.id)}<span>${nameOf(s.id)} ×${s.qty}</span><b>${money(s.total)} 💰</b></div>`).join('');
+    const w = { sun: '☀️ Sol', rain: '🌧️ Chuva (as plantas já amanhecem regadas!)', snow: '🌨️ Neve (os animais ficam dentro de casa)' }[S.weather];
+    const notes = [];
+    if (r.died) notes.push(`<p class="warn center">🥀 ${r.died} planta(s) morreram.</p>`);
+    if (r.products) notes.push(`<p class="center">🥚 Seus animais produziram ${r.products} item(ns). Vá coletar!</p>`);
+    if (r.expired) notes.push(`<p class="warn center">📋 ${r.expired} pedido(s) do quadro expiraram.</p>`);
+    if (r.festival) notes.push(`<p class="center big-note">${r.festival.icon} Hoje é dia de ${r.festival.name}! Vá até a praça ao lado da barraca.</p>`);
+    if (r.festivalTomorrow) notes.push(`<p class="center">${r.festivalTomorrow.icon} Amanhã tem ${r.festivalTomorrow.name}!</p>`);
     openModal(r.passedOut ? '😵 Você desmaiou...' : '🌙 Fim do dia', `
       ${r.passedOut ? `<p class="center warn">Alguém te levou para casa. Você perdeu ${money(r.lost)} 💰 e acordou cansado.</p>` : ''}
       <h3>📦 Caixa de Envio</h3>
       ${rows || '<p class="muted center">Nada foi enviado hoje.</p>'}
       <div class="line total"><span>Total de vendas</span><b>${money(r.total)} 💰</b></div>
-      ${r.died ? `<p class="warn center">🥀 ${r.died} planta(s) secaram.</p>` : ''}
-      ${r.newSeason ? `<p class="center big-note">Chegou o ${r.newSeason}! ${S.season === 3 ? '❄️ As plantações morreram com o frio.' : '🌱'}</p>` : ''}
+      ${notes.join('')}
+      ${r.newSeason ? `<p class="center big-note">Chegou o ${r.newSeason}! 🌱 Confira as sementes da estação na Dona Rosa.</p>` : ''}
       <p class="center">📅 ${SEASONS[S.season]}, Dia ${S.day} — Ano ${S.year}<br>Previsão: ${w}</p>
       <div class="row center"><button class="btn big" data-a="ok">☀️ Bom dia!</button></div>`, { noClose: true, onClose: done });
     $('#modalBody').onclick = e => { if (e.target.closest('button')?.dataset.a === 'ok') { Sound.play('click'); closeModal(true); } };
@@ -202,17 +247,17 @@ const UI = (() => {
   // ---------------------------------------------------------------- caixa de envio
   function openBin() {
     const render = () => {
-      const sellable = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && ITEMS[o.it.id].sell);
-      const binTotal = S.bin.reduce((a, b) => a + ITEMS[b.id].sell * b.qty, 0);
+      const sellable = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && def(o.it.id).sell);
+      const binTotal = S.bin.reduce((a, b) => a + sellOf(b.id) * b.qty, 0);
       $('#modalBody').innerHTML = `
-        <p class="muted center">Coloque itens aqui. Eles são vendidos durante a noite.</p>
+        <p class="muted center">Coloque itens aqui. Eles são vendidos durante a noite. Qualidade ★ prata vale +25%, ★ ouro +50%.</p>
         <div class="cols">
           <div><h3>🎒 Sua mochila</h3>${sellable.map(({ it, i }) => `
-            <div class="line">${icon(iconId(it.id))}<span>${ITEMS[it.id].name} ×${it.qty}<small>${ITEMS[it.id].sell} 💰 cada</small></span>
+            <div class="line">${icon(it.id)}${qBadge(it.id)}<span>${nameOf(it.id)} ×${it.qty}<small>${sellOf(it.id)} 💰 cada</small></span>
               <button class="btn sm" data-a="one" data-i="${i}">+1</button><button class="btn sm" data-a="all" data-i="${i}">Tudo</button></div>`).join('') || '<p class="muted">Nada para vender.</p>'}
           </div>
           <div><h3>📦 Na caixa</h3>${S.bin.map((b, j) => `
-            <div class="line">${icon(iconId(b.id))}<span>${ITEMS[b.id].name} ×${b.qty}</span><b>${money(ITEMS[b.id].sell * b.qty)}</b>
+            <div class="line">${icon(b.id)}${qBadge(b.id)}<span>${nameOf(b.id)} ×${b.qty}</span><b>${money(sellOf(b.id) * b.qty)}</b>
               <button class="btn sm alt" data-a="back" data-j="${j}">↩</button></div>`).join('') || '<p class="muted">Vazia.</p>'}
             <div class="line total"><span>Valor amanhã</span><b>${money(binTotal)} 💰</b></div>
           </div>
@@ -224,11 +269,11 @@ const UI = (() => {
       const b = e.target.closest('button'); if (!b) return;
       const a = b.dataset.a;
       if (a === 'one' || a === 'all') {
-        const it = S.inv[+b.dataset.i]; if (!it) return;
+        const i = +b.dataset.i, it = S.inv[i]; if (!it) return;
         const q = a === 'one' ? 1 : it.qty;
         const ex = S.bin.find(x => x.id === it.id);
         if (ex) ex.qty += q; else S.bin.push({ id: it.id, qty: q });
-        it.qty -= q; if (it.qty <= 0) S.inv[+b.dataset.i] = null;
+        removeAt(i, q);
         Sound.play('coin');
       } else if (a === 'back') {
         const j = +b.dataset.j, bi = S.bin[j];
@@ -240,97 +285,266 @@ const UI = (() => {
     };
   }
 
-  // ---------------------------------------------------------------- loja
-  function openShop() {
-    const h = Math.floor(S.time / 60);
-    if (h < 7 || h >= 20) { toast('🌙 A Dona Rosa já foi descansar. A loja abre das 7h às 20h.'); return; }
-    let tab = 'seeds';
-    const render = () => {
-      const tabs = [['seeds', '🌱 Sementes'], ['food', '🍞 Comida'], ['up', '🛠️ Melhorias']]
-        .map(([id, l]) => `<button class="tab ${tab === id ? 'on' : ''}" data-tab="${id}">${l}</button>`).join('');
-      let body = '';
-      if (tab === 'seeds' || tab === 'food') {
-        const ids = tab === 'seeds' ? ['seed_carrot', 'seed_corn', 'seed_tomato', 'seed_strawberry'] : ['bread', 'soup'];
-        body = ids.map(id => {
-          const d = ITEMS[id];
-          const extra = d.kind === 'food' ? `+${d.energy} de energia` : d.desc;
-          return `<div class="line">${icon(id)}<span>${d.name}<small>${extra}</small></span><b>${d.price} 💰</b>
-            <button class="btn sm" data-buy="${id}" data-q="1" ${S.gold < d.price ? 'disabled' : ''}>×1</button>
-            <button class="btn sm" data-buy="${id}" data-q="5" ${S.gold < d.price * 5 ? 'disabled' : ''}>×5</button></div>`;
-        }).join('');
-        if (tab === 'seeds' && S.season === 3) body = `<p class="warn center">❄️ É inverno: nada cresce agora. Volte na primavera!</p>` + body;
-      } else {
-        body = UPGRADES.filter(u => !u.need || u.need()).map(u => {
-          const mats = Object.entries(u.mats).map(([m, q]) => `${icon(m, 'px tiny')}${countItem(m)}/${q}`).join(' ');
-          const ok = S.gold >= u.cost && Object.entries(u.mats).every(([m, q]) => countItem(m) >= q);
-          return `<div class="line">${icon(u.icon)}<span>${u.name}<small>${u.desc}</small><small class="mats">${mats}</small></span>
-            ${u.have() ? '<b class="ok">✔ Comprado</b>' : `<b>${money(u.cost)} 💰</b><button class="btn sm" data-up="${u.id}" ${ok ? '' : 'disabled'}>Comprar</button>`}</div>`;
-        }).join('');
-      }
-      $('#modalBody').innerHTML = `<p class="muted center">"Olá, querida(o)! O que vai levar hoje?" — Dona Rosa</p>
-        <div class="tabs">${tabs}</div><div class="list">${body}</div>`;
+  // ---------------------------------------------------------------- moradores e lojas
+  const SHOP_TABS = {
+    rosa: [['talk', '💬 Conversar'], ['seeds', '🌱 Sementes'], ['food', '🍞 Comida'], ['animals', '🐔 Animais'], ['up', '🛠️ Melhorias']],
+    ze: [['talk', '💬 Conversar'], ['shop', '🎣 Loja do Zé']],
+    tiao: [['talk', '💬 Conversar'], ['shop', '⚒️ Ferraria']],
+  };
+  const NPC_STOCK = { ze: [['bait', 5]], tiao: [['sprinkler', 300], ['sprinkler2', 800], ['lamp', 250], ['fence_item', 10]] };
+  const NPC_BUYS = { ze: id => def(id).kind === 'fish', tiao: id => ['copper', 'iron'].includes(baseOf(id)) };
+
+  function openNPC(id) {
+    const N = NPCS[id];
+    let tab = id === 'rosa' ? 'seeds' : 'talk', line = null, giftMode = false;
+    const open = () => { const h = Math.floor(S.time / 60); return h >= N.hours[0] && h < N.hours[1]; };
+    const price = p => Math.round(p * discount(id));
+    const buyRow = (itemId, p, extra) => {
+      const d = ITEMS[itemId], pp = price(p);
+      return `<div class="line">${icon(itemId)}<span>${d.name}<small>${extra || d.desc || ''}</small></span><b>${pp} 💰</b>
+        <button class="btn sm" data-buy="${itemId}" data-p="${pp}" data-q="1" ${S.gold < pp ? 'disabled' : ''}>×1</button>
+        <button class="btn sm" data-buy="${itemId}" data-p="${pp}" data-q="5" ${S.gold < pp * 5 ? 'disabled' : ''}>×5</button></div>`;
     };
-    openModal('🛒 Barraca da Dona Rosa', '', { wide: true, onRefresh: render });
+    const render = () => {
+      let body = '';
+      if (tab === 'talk') {
+        const h = hearts(id);
+        const hint = h >= 2 ? `Adora: ${N.loves.map(x => icon(x, 'px tiny')).join('')}` : 'Dê presentes para descobrir do que gosta...';
+        if (giftMode) {
+          const items = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && def(o.it.id).kind !== 'tool');
+          body = `<p class="center">Escolha um presente para ${N.name}:</p><div class="grid">${items.map(({ it, i }) =>
+            `<button class="cell" data-gift="${i}">${icon(it.id)}${qBadge(it.id)}<span class="qty">${it.qty}</span></button>`).join('') || '<p class="muted">Nada para dar.</p>'}</div>
+            <div class="row center"><button class="btn alt sm" data-a="back">↩ Voltar</button></div>`;
+        } else {
+          body = `<div class="npc-head"><img class="portrait" src="${Sprites.npc(id, 0, 0).toDataURL()}" alt="">
+            <div><b>${N.name}</b> <small>— ${N.role}</small><br>${heartsHTML(h)}<br><small class="muted">${hint}</small></div></div>
+            <div class="speech">${line || (S.talked[id] ? npcLine(id) : 'Olá! Como vai?')}</div>
+            <div class="row center">
+              <button class="btn" data-a="talk">💬 Conversar${S.talked[id] ? '' : ' (+♥)'}</button>
+              <button class="btn alt" data-a="gift" ${S.gifted[id] ? 'disabled' : ''}>🎁 Presentear${S.gifted[id] ? ' (amanhã)' : ''}</button>
+            </div>
+            <p class="muted center">${h >= 5 ? '💖 Por serem amigos, você tem 10% de desconto aqui!' : 'Com 5 corações você ganha 10% de desconto.'}</p>`;
+        }
+      } else if (!open()) {
+        body = `<p class="center warn">🌙 ${N.name} atende das ${N.hours[0]}h às ${N.hours[1]}h.</p>`;
+      } else if (tab === 'seeds') {
+        body = SEED_ORDER.map(sid => {
+          const c = CROPS[ITEMS[sid].crop], inSeason = c.seasons.includes(S.season);
+          const info = `${c.days} dias${c.regrow ? `, produz de novo a cada ${c.regrow}` : ''} · ${c.seasons.map(s => SEASONS[s]).join(', ')}`;
+          return inSeason ? buyRow(sid, ITEMS[sid].price, info) : '';
+        }).join('') || `<p class="warn center">❄️ É inverno: nada cresce agora. Volte na primavera!</p>`;
+        const off = SEED_ORDER.filter(sid => !CROPS[ITEMS[sid].crop].seasons.includes(S.season)).map(sid => icon(sid, 'px tiny')).join('');
+        if (off) body += `<p class="muted center">Fora de estação: ${off}</p>`;
+      } else if (tab === 'food') {
+        body = ['bread', 'soup'].map(fid => buyRow(fid, ITEMS[fid].price, `+${ITEMS[fid].energy} de energia`)).join('');
+      } else if (tab === 'animals') {
+        body = Object.entries(ANIMALS).map(([type, A]) => {
+          const n = S.animals.filter(a => a.type === type).length, house = S[A.house], pp = price(A.price);
+          const why = !house ? `Precisa de ${A.house === 'coop' ? 'Galinheiro' : 'Estábulo'} (aba Melhorias)` : n >= A.max ? 'Casa cheia' : '';
+          return `<div class="line">${icon(A.product)}<span>${A.name}<small>Dá ${ITEMS[A.product].name.toLowerCase()} todo dia se alimentada. ${n}/${A.max}</small>${why ? `<small class="warn">${why}</small>` : ''}</span>
+            <b>${money(pp)} 💰</b><button class="btn sm" data-animal="${type}" data-p="${pp}" ${why || S.gold < pp ? 'disabled' : ''}>Comprar</button></div>`;
+        }).join('') + buyRow('hay', ITEMS.hay.price);
+      } else if (tab === 'up') {
+        body = UPGRADES.filter(u => !u.need || u.need()).map(u => {
+          const mats = Object.entries(u.mats).map(([m, q]) => `<span class="ing ${countItem(m) >= q ? 'ok' : 'no'}">${icon(m, 'px tiny')}${countItem(m)}/${q}</span>`).join(' ');
+          const ok = S.gold >= u.cost && hasAll(u.mats);
+          return `<div class="line">${icon(u.icon)}<span>${u.name}<small>${u.desc}</small><small class="mats">${mats}</small></span>
+            ${u.have() ? '<b class="ok">✔ Feito</b>' : `<b>${money(u.cost)} 💰</b><button class="btn sm" data-up="${u.id}" ${ok ? '' : 'disabled'}>Comprar</button>`}</div>`;
+        }).join('');
+      } else if (tab === 'shop') {
+        body = NPC_STOCK[id].map(([sid, p]) => buyRow(sid, p)).join('');
+        const sellable = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && NPC_BUYS[id](o.it.id));
+        body += `<h3>${id === 'ze' ? '🐟 Vender peixes' : '⛏️ Vender minérios'} <small class="muted">(paga 15% a mais, na hora)</small></h3>` +
+          (sellable.map(({ it, i }) => `<div class="line">${icon(it.id)}${qBadge(it.id)}<span>${nameOf(it.id)} ×${it.qty}</span>
+            <b>${Math.round(sellOf(it.id) * 1.15)} 💰</b><button class="btn sm" data-sell="${i}">Vender 1</button></div>`).join('') || '<p class="muted center">Nada para vender agora.</p>');
+      }
+      $('#modalBody').innerHTML = tabsHTML(SHOP_TABS[id], tab) + `<div class="list">${body}</div>`;
+    };
+    openModal(id === 'rosa' ? '🛒 Barraca da Dona Rosa' : `${id === 'ze' ? '🎣' : '⚒️'} ${N.name}`, '', { wide: true, onRefresh: render });
     render();
     $('#modalBody').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.tab) { tab = b.dataset.tab; Sound.play('click'); render(); return; }
+      if (b.dataset.tab) { tab = b.dataset.tab; giftMode = false; Sound.play('click'); render(); return; }
+      const a = b.dataset.a;
+      if (a === 'talk') { line = talkTo(id); Sound.play('click'); }
+      if (a === 'gift') { giftMode = true; Sound.play('click'); }
+      if (a === 'back') giftMode = false;
+      if (b.dataset.gift) { const r = giftTo(id, +b.dataset.gift); if (r) line = r; giftMode = false; }
       if (b.dataset.buy) {
-        const id = b.dataset.buy, q = +b.dataset.q, cost = ITEMS[id].price * q;
+        const sid = b.dataset.buy, q = +b.dataset.q, cost = +b.dataset.p * q;
         if (S.gold < cost) return;
-        if (!hasRoom(id)) { toast('🎒 Mochila cheia!'); Sound.play('error'); return; }
-        S.gold -= cost; addItem(id, q); Sound.play('coin');
+        if (!hasRoom(sid)) { toast('🎒 Mochila cheia!'); Sound.play('error'); return; }
+        S.gold -= cost; addItem(sid, q); Sound.play('coin');
+      }
+      if (b.dataset.animal) {
+        const p = +b.dataset.p; if (S.gold < p) return;
+        S.gold -= p; const an = buyAnimal(b.dataset.animal);
+        Sound.play('level'); toast(`🐾 ${an.name} chegou na fazenda! Não esqueça do feno.`);
       }
       if (b.dataset.up) {
         const u = UPGRADES.find(x => x.id === b.dataset.up);
-        if (!u || u.have()) return;
+        if (!u || u.have() || S.gold < u.cost || !hasAll(u.mats)) return;
         S.gold -= u.cost;
         for (const [m, q] of Object.entries(u.mats)) removeItem(m, q);
-        u.apply(); Sound.play('level'); toast(`✨ ${u.name} adquirida!`);
+        u.apply(); Sound.play('level'); toast(`✨ ${u.name}: feito!`);
         save();
       }
-      refresh();
+      if (b.dataset.sell) {
+        const i = +b.dataset.sell, it = S.inv[i]; if (!it) return;
+        const p = Math.round(sellOf(it.id) * 1.15);
+        S.gold += p; S.stats.earned += p; removeAt(i, 1); Sound.play('coin');
+      }
+      refresh(); render();
     };
   }
 
-  // ---------------------------------------------------------------- mochila
-  function openBag() {
-    swapFrom = null;
+  // ---------------------------------------------------------------- quadro de pedidos
+  function openBoard() {
     const render = () => {
-      const cell = i => {
-        const it = S.inv[i];
-        return `<button class="cell ${i < 6 ? 'hot' : ''} ${swapFrom === i ? 'pick' : ''} ${S.sel === i ? 'sel' : ''}" data-i="${i}">
-          ${it ? icon(iconId(it.id)) + (ITEMS[it.id].kind !== 'tool' ? `<span class="qty">${it.qty}</span>` : '') : ''}</button>`;
-      };
-      const info = swapFrom != null && S.inv[swapFrom] ? (() => {
-        const it = S.inv[swapFrom], d = ITEMS[it.id];
-        return `<b>${d.name}</b> — ${d.desc || ''} ${d.sell ? `Vende por ${d.sell} 💰.` : ''} ${d.energy ? `Comer: +${d.energy} ❤️.` : ''}`;
-      })() : 'Toque em um item e depois em outro espaço para trocar de lugar. A primeira linha é a hotbar.';
-      $('#modalBody').innerHTML = `<div class="grid">${S.inv.map((_, i) => cell(i)).join('')}</div><p class="muted center info">${info}</p>
-        <div class="stats">💰 ${money(S.gold)} · 🌾 ${S.stats.harvest} colhidos · 🐟 ${S.stats.fish} peixes · ⛏️ ${S.stats.ore} minérios</div>`;
+      $('#modalBody').innerHTML = `<p class="muted center">Os vizinhos deixam pedidos aqui. Entregue a tempo para ganhar ouro e amizade!</p>` +
+        (S.quests.map(q => {
+          const have = countItem(q.item), N = NPCS[q.from];
+          return `<div class="line">${icon(ingIcon(q.item))}<span>${N.name} precisa de ${q.qty}× ${ingName(q.item)}
+            <small>Você tem ${have}/${q.qty} · ⏳ ${q.days} dia(s) · +♥ ${N.name}</small></span>
+            <b>${money(q.reward)} 💰</b><button class="btn sm" data-q="${q.id}" ${have >= q.qty ? '' : 'disabled'}>Entregar</button></div>`;
+        }).join('') || '<p class="center">Nenhum pedido hoje. Volte amanhã!</p>') +
+        `<p class="muted center">Pedidos concluídos: ${S.stats.quests}</p>`;
     };
-    openModal('🎒 Mochila', '', { onRefresh: render });
+    openModal('📋 Quadro de Pedidos', '', { wide: true, onRefresh: render });
     render();
     $('#modalBody').onclick = e => {
+      const b = e.target.closest('button[data-q]'); if (!b) return;
+      if (deliverQuest(+b.dataset.q)) toast('📋 Pedido entregue! Obrigado(a)!');
+      refresh(); render();
+    };
+  }
+
+  // ---------------------------------------------------------------- animais
+  function openAnimals(type) {
+    const A = ANIMALS[type];
+    const render = () => {
+      const list = S.animals.filter(a => a.type === type);
+      const unfed = list.filter(a => !a.fed).length, ready = list.filter(a => a.ready).length;
+      $('#modalBody').innerHTML = (list.length ? list.map(a => `
+        <div class="line">${icon(A.product)}<span>${a.name}
+          <small>${heartsHTML(Math.floor(a.love / 200), 5)} · ${a.fed ? '🌾 alimentada' : '<b class="warn">com fome</b>'} · ${a.petted ? '💕 carinho feito' : 'quer carinho'}</small></span>
+          ${a.ready ? `<b>${icon(a.ready, 'px tiny')}${qBadge(a.ready)} pronto</b>` : ''}</div>`).join('')
+        : `<p class="center">Nenhum animal ainda. Compre ${type === 'chicken' ? 'galinhas' : 'vacas'} com a Dona Rosa (aba 🐔 Animais).</p>`) +
+        `<div class="row center">
+          <button class="btn" data-a="feed" ${unfed ? '' : 'disabled'}>🌾 Alimentar (${unfed}) · feno: ${countItem('hay')}</button>
+          <button class="btn alt" data-a="collect" ${ready ? '' : 'disabled'}>🧺 Coletar (${ready})</button>
+        </div>
+        <p class="muted center">Animais alimentados produzem todo dia. Carinho diário aumenta a amizade e a qualidade dos produtos.
+        Faça carinho tocando neles lá fora (eles entram às 19h).</p>`;
+    };
+    openModal(type === 'chicken' ? '🐔 Galinheiro' : '🐄 Estábulo', '', { wide: true, onRefresh: render });
+    render();
+    $('#modalBody').onclick = e => {
+      const a = e.target.closest('button')?.dataset.a;
+      if (a === 'feed') {
+        const n = feedAnimals(type);
+        if (n) { toast(`🌾 ${n} animal(is) alimentado(s)!`); Sound.play('plant'); } else toast('Sem feno! Compre com a Dona Rosa ou arranque mato.');
+      }
+      if (a === 'collect') {
+        let n = 0;
+        for (const an of S.animals) if (an.type === type && an.ready) { if (collectProduct(an)) n++; else break; }
+        if (n) toast(`🧺 Coletou ${n} item(ns)!`);
+      }
+      refresh(); render();
+    };
+  }
+
+  // ---------------------------------------------------------------- festival
+  function openFestival() {
+    const F = FESTIVALS[S.season], done = S.festDone === festKey();
+    let result = null;
+    const render = () => {
+      let body = `<p class="center big-note">${F.icon} ${F.name}</p><p class="center">${F.desc}</p>`;
+      if (result) body += `<p class="center big-note">${result}</p>`;
+      else if (done) body += `<p class="center ok">Você já participou deste festival. Até a próxima!</p>`;
+      else if (!F.entry) {
+        body += lanternNight()
+          ? `<div class="row center"><button class="btn big" data-a="lantern">🏮 Soltar lanterna</button></div>`
+          : `<p class="center warn">A festa começa às 18h. Volte mais tarde!</p>`;
+      } else {
+        const items = S.inv.map((it, i) => ({ it, i })).filter(o => o.it && matches(o.it.id, F.entry));
+        body += `<h3>Escolha sua inscrição:</h3>` + (items.map(({ it, i }) => `<div class="line">${icon(it.id)}${qBadge(it.id)}<span>${nameOf(it.id)}</span>
+          <button class="btn sm" data-enter="${i}">Inscrever</button></div>`).join('') ||
+          `<p class="muted center">Você não tem ${F.entry === 'fish' ? 'nenhum peixe' : ingName(F.entry).toLowerCase()} na mochila.</p>`);
+        body += `<p class="muted center">Prêmios: 🥇 ${money(FEST_PRIZES[0].gold)} 💰 + Troféu · 🥈 ${money(FEST_PRIZES[1].gold)} 💰 · 🥉 ${money(FEST_PRIZES[2].gold)} 💰</p>`;
+      }
+      $('#modalBody').innerHTML = body;
+    };
+    openModal('🎪 Festival', '', { onRefresh: render });
+    render();
+    $('#modalBody').onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.enter) {
+        const p = festEnter(+b.dataset.enter);
+        if (p) result = `${p.place === '1º lugar' ? '🥇' : p.place === '2º lugar' ? '🥈' : '🥉'} ${p.place}! Você ganhou ${money(p.gold)} 💰${p.item ? ' e um Troféu' : ''}!`;
+      }
+      if (b.dataset.a === 'lantern' && festLanterns()) result = '🏮 Que noite linda! Os vizinhos te deram 2 Lampiões.';
+      refresh(); render();
+    };
+  }
+
+  // ---------------------------------------------------------------- mochila e fabricação
+  function openBag() {
+    swapFrom = null;
+    let tab = 'items';
+    const render = () => {
+      let body;
+      if (tab === 'items') {
+        const cell = i => `<button class="cell ${i < 6 ? 'hot' : ''} ${swapFrom === i ? 'pick' : ''} ${S.sel === i ? 'sel' : ''}" data-i="${i}">${slotHTML(S.inv[i])}</button>`;
+        const info = swapFrom != null && S.inv[swapFrom] ? (() => {
+          const it = S.inv[swapFrom], d = def(it.id);
+          return `<b>${nameOf(it.id)}</b> — ${d.desc || ''} ${d.sell ? `Vende por ${sellOf(it.id)} 💰.` : ''} ${d.energy ? `Comer: +${energyOf(it.id)} ❤️.` : ''}`;
+        })() : 'Toque em um item e depois em outro espaço para trocar de lugar. A primeira linha é a hotbar.';
+        body = `<div class="grid">${S.inv.map((_, i) => cell(i)).join('')}</div><p class="muted center info">${info}</p>
+          <div class="stats">💰 ${money(S.gold)} · 🌾 ${S.stats.harvest} colhidos · 🐟 ${S.stats.fish} peixes · ⛏️ ${S.stats.ore} minérios</div>`;
+      } else {
+        body = `<p class="muted center">Fabrique com materiais coletados. Depois selecione na hotbar e use o botão de ação para colocar.</p>` +
+          CRAFTS.map((c, i) => {
+            const d = ITEMS[c.id];
+            return `<div class="line">${icon(c.id)}<span>${d.name}${c.qty > 1 ? ` ×${c.qty}` : ''}<small>${d.desc}</small><small class="mats">${ingHTML(c.ing)}</small></span>
+              <button class="btn sm" data-craft="${i}" ${hasAll(c.ing) ? '' : 'disabled'}>Fabricar</button></div>`;
+          }).join('');
+      }
+      $('#modalBody').innerHTML = tabsHTML([['items', '🎒 Itens'], ['craft', '🔨 Fabricar']], tab) + body;
+    };
+    openModal('🎒 Mochila', '', { wide: true, onRefresh: render });
+    render();
+    $('#modalBody').onclick = e => {
+      const t = e.target.closest('[data-tab]');
+      if (t) { tab = t.dataset.tab; swapFrom = null; Sound.play('click'); render(); return; }
+      const c = e.target.closest('[data-craft]');
+      if (c) {
+        const cr = CRAFTS[+c.dataset.craft];
+        if (!hasRoom(cr.id)) toast('🎒 Mochila cheia!');
+        else if (craft(cr)) toast(`🔨 Você fabricou: ${ITEMS[cr.id].name}!`);
+        refresh(); render(); return;
+      }
       const b = e.target.closest('.cell'); if (!b) return;
       const i = +b.dataset.i;
       Sound.play('click');
       if (swapFrom == null) { if (S.inv[i]) swapFrom = i; }
       else {
-        if (swapFrom !== i) { const t = S.inv[i]; S.inv[i] = S.inv[swapFrom]; S.inv[swapFrom] = t; }
+        if (swapFrom !== i) { const tmp = S.inv[i]; S.inv[i] = S.inv[swapFrom]; S.inv[swapFrom] = tmp; }
         swapFrom = null;
       }
-      refresh();
+      refresh(); render();
     };
   }
 
-  // ---------------------------------------------------------------- menu / ajuda
+  // ---------------------------------------------------------------- menu, conquistas e ajuda
   function openMenu() {
     const render = () => {
+      const got = ACHIEVEMENTS.filter(a => S.ach[a.id]).length;
       $('#modalBody').innerHTML = `
         <div class="menu">
           <button class="btn" data-a="resume">▶ Continuar</button>
           <button class="btn" data-a="save">💾 Salvar agora</button>
+          <button class="btn alt" data-a="ach">🏆 Conquistas e diário (${got}/${ACHIEVEMENTS.length})</button>
           <button class="btn alt" data-a="sfx">${Sound.sfxOn ? '🔊' : '🔈'} Efeitos: ${Sound.sfxOn ? 'ligados' : 'desligados'}</button>
           <button class="btn alt" data-a="mus">${Sound.musOn ? '🎵' : '🔇'} Música: ${Sound.musOn ? 'ligada' : 'desligada'}</button>
           <button class="btn alt" data-a="help">❓ Como jogar</button>
@@ -345,11 +559,34 @@ const UI = (() => {
       Sound.play('click');
       if (a === 'resume') closeModal();
       if (a === 'save') { save(); toast('💾 Jogo salvo!'); closeModal(); }
+      if (a === 'ach') openAchievements();
       if (a === 'sfx') { Sound.toggleSfx(); render(); }
       if (a === 'mus') { Sound.toggleMusic(); render(); }
       if (a === 'help') help();
       if (a === 'title') { save(); closeModal(true); showTitle(); }
     };
+  }
+
+  function openAchievements() {
+    const rows = ACHIEVEMENTS.map(a => {
+      const ok = S.ach[a.id], pr = !ok && a.prog ? a.prog(S) : null;
+      return `<div class="line ach ${ok ? 'got' : ''}"><span class="emo">${ok ? '🏆' : '🔒'}</span><span>${a.name}<small>${a.desc}${pr ? ` (${money(Math.min(pr[0], pr[1]))}/${money(pr[1])})` : ''}</small></span></div>`;
+    }).join('');
+    const friends = Object.keys(NPCS).map(id => `<div class="line"><span>${NPCS[id].name}<small>${NPCS[id].role}</small></span>${heartsHTML(hearts(id))}</div>`).join('');
+    const st = S.stats;
+    openModal('🏆 Conquistas e diário', `
+      <div class="cols"><div>${rows}</div><div>
+        <h3>📖 Diário</h3>
+        <div class="line"><span>Dias na fazenda</span><b>${(S.year - 1) * 112 + S.season * 28 + S.day}</b></div>
+        <div class="line"><span>Plantas colhidas</span><b>${st.harvest}</b></div>
+        <div class="line"><span>Peixes pescados</span><b>${st.fish}</b></div>
+        <div class="line"><span>Minérios</span><b>${st.ore}</b></div>
+        <div class="line"><span>Pratos cozinhados</span><b>${st.cooked}</b></div>
+        <div class="line"><span>Pedidos entregues</span><b>${st.quests}</b></div>
+        <div class="line"><span>Animais</span><b>${S.animals.length}</b></div>
+        <div class="line"><span>Total vendido</span><b>${money(st.earned)} 💰</b></div>
+        <h3>💞 Amizades</h3>${friends}
+      </div></div>`, { wide: true });
   }
 
   function help() {
@@ -358,22 +595,27 @@ const UI = (() => {
         <p><b>Objetivo:</b> transforme o terreno abandonado numa fazenda próspera!</p>
         <ol>
           <li>🪓 <b>Limpe</b> o terreno: arranque mato, corte galhos e árvores, quebre pedras.</li>
-          <li>⛏️ <b>Are</b> a terra com a enxada.</li>
-          <li>🌱 <b>Plante</b> sementes e 💧 <b>regue</b> todo dia (encha o regador no lago).</li>
-          <li>🛏️ <b>Durma</b> para os dias passarem e as plantas crescerem.</li>
-          <li>🖐️ <b>Colha</b> e coloque na 📦 <b>Caixa de Envio</b> ao lado da casa: vende de noite.</li>
-          <li>🛒 Compre sementes e <b>melhorias</b> na barraca da Dona Rosa. Expanda a fazenda!</li>
+          <li>⛏️ <b>Are</b> a terra com a enxada, 🌱 <b>plante</b> sementes da estação e 💧 <b>regue</b> todo dia.</li>
+          <li>🛏️ <b>Durma</b> (porta da casa) para os dias passarem. Lá também fica o 🍳 <b>fogão</b>.</li>
+          <li>🖐️ <b>Colha</b> e venda na 📦 <b>Caixa de Envio</b>. Itens ★ prata e ★ ouro valem mais!</li>
+          <li>🛒 Na <b>Dona Rosa</b>: sementes, comida, animais e melhorias (galinheiro, estábulo, expansão...).</li>
+          <li>🔨 Na mochila, aba <b>Fabricar</b>: aspersores (regam sozinhos!), cercas, caminhos, canteiros e lampiões.</li>
+          <li>🐔 <b>Animais</b>: alimente com feno no galinheiro/estábulo, faça carinho e colete ovos e leite.</li>
+          <li>📋 <b>Quadro de Pedidos</b> ao lado da barraca: entregue itens para ganhar ouro e amizade.</li>
+          <li>💬 Converse e dê presentes ao <b>Seu Zé</b> (lago) e ao <b>Tião</b> (pedreira). Amigos dão presentes e descontos.</li>
+          <li>🎪 Todo <b>dia 14</b> tem festival na praça. Participe dos concursos!</li>
         </ol>
-        <p><b>Controles (toque):</b> arraste no mapa para andar (D-pad aparece onde o dedo toca) ou toque num tile para ir até lá. Toque num tile ao seu lado para usar o item nele. O <b>botão grande</b> faz a ação do momento. Toque na hotbar para trocar de item.</p>
+        <p><b>Controles (toque):</b> arraste no mapa para andar ou toque num tile para ir até lá. Toque num tile ao seu lado para usar o item nele. O <b>botão grande</b> faz a ação do momento.</p>
         <p><b>Teclado:</b> WASD/setas andam · Espaço/E ação · 1–6 hotbar · I mochila · Esc menu.</p>
-        <p><b>Dicas:</b> cada ação gasta ❤️ energia — coma para recuperar. 1 minuto real = 1 hora no jogo. Às 2h você desmaia! Planta sem água por 3 dias seca. No inverno nada cresce: pesque e minere na pedreira (nordeste).</p>
+        <p><b>Dicas:</b> cada ação gasta ❤️ energia — coma para recuperar. 1 minuto real = 1 hora no jogo. Às 2h você desmaia! Planta sem água por 3 dias seca, e plantas fora de estação morrem na virada.</p>
       </div>`, { wide: true });
   }
 
   function intro() {
     openModal('🌻 Bem-vindo ao Vale Florido!', `
       <p class="center">Você herdou a velha fazenda do seu avô. O terreno está tomado pelo mato, mas com trabalho e carinho ela vai voltar a florescer!</p>
-      <p class="center">Comece arando a terra ao lado da casa, plante as <b>sementes de cenoura</b> e regue.<br>Você tem <b>250 💰</b> e muita disposição.</p>
+      <p class="center">Comece arando a terra ao lado da casa, plante as <b>sementes de cenoura</b> e regue.<br>Você tem <b>250 💰</b> e muita disposição.
+      Dê uma olhada no 📋 <b>quadro de pedidos</b> perto da barraca!</p>
       <div class="row center"><button class="btn big" data-a="ok">Vamos lá! 🌱</button><button class="btn alt" data-a="help">Como jogar</button></div>`);
     $('#modalBody').onclick = e => {
       const a = e.target.closest('button')?.dataset.a;
@@ -394,7 +636,8 @@ const UI = (() => {
   }
 
   return {
-    init, tick, refresh, toast, joystick, askSleep, fade, daySummary, openBin, openShop, openBag, openMenu, intro, handleKey,
+    init, tick, refresh, toast, joystick, fade, daySummary, openHouse, openBin, openNPC, openBoard, openAnimals,
+    openFestival, openBag, openMenu, intro, handleKey,
     blocking: () => modalOpen || titleOpen,
     inGame: () => !titleOpen,
   };

@@ -413,6 +413,26 @@ const Sprites = (() => {
           [[5, B - 4], [10, B - 4]].forEach(([a, b]) => { px(x, a, b, '#ffffff'); px(x, a + 1, b, '#ffd84a'); });
         }
       }
+    } else if (type === 'sunflower') {
+      const h = big ? 15 : 11;
+      rect(x, 7, B - h, 2, h + 1, L); rect(x, 8, B - h, 1, h + 1, D);
+      line(x, 6, B - 4, 3, B - 7, L); line(x, 9, B - 6, 12, B - 9, H);
+      if (dead) ell(x, 8, B - h, 3, 3, '#8a6a3a');
+      else if (big) { ell(x, 8, B - h - 1, 4.5, 4.5, '#ffd23a'); ell(x, 8, B - h - 1, 2.2, 2.2, '#6a3a1a'); px(x, 6, B - h - 4, '#fff08a'); }
+      else ell(x, 8, B - h, 2, 2, '#9ad060');
+    } else if (type === 'melon' || type === 'pumpkin') {
+      line(x, 1, B, 14, B - 2, D);
+      ell(x, 4, B - 3, 3, 2.5, L); ell(x, 12, B - 5, 3, 2.5, H); ell(x, 8, B - 6, 2.5, 2, L);
+      if (!dead && !big) ell(x, 9, B - 1, 2, 1.5, type === 'melon' ? '#5aa83a' : '#e8a040');
+      if (!dead && big) {
+        if (type === 'melon') {
+          ell(x, 8, B - 2, 6.5, 4.5, dx => (Math.floor((dx + 1) * 5) % 2 ? '#2f7a2a' : '#5cb040'));
+          px(x, 5, B - 4, '#a8e070');
+        } else {
+          ell(x, 8, B - 3, 6.5, 4.5, dx => (Math.abs(dx) < 0.12 || Math.abs(Math.abs(dx) - 0.55) < 0.1 ? '#c8601a' : '#f08a24'));
+          rect(x, 7, B - 9, 2, 2, '#5a3a1a'); px(x, 5, B - 5, '#ffb060');
+        }
+      }
     }
     return outline(c, dead ? '#4a3a24' : '#1f3a1a');
   }
@@ -459,10 +479,12 @@ const Sprites = (() => {
         rect(x, 4, 10, 3, 3, '#8994a0'); px(x, 5, 11, '#c3ccd6');
         line(x, 14, 1, 14, 10, '#e8e8e8'); px(x, 13, 11, '#c3ccd6'); px(x, 14, 12, '#c3ccd6');
         break;
-      case 'seed_carrot': case 'seed_corn': case 'seed_tomato': case 'seed_strawberry': {
+      case 'seed_carrot': case 'seed_corn': case 'seed_tomato': case 'seed_strawberry':
+      case 'seed_sunflower': case 'seed_melon': case 'seed_pumpkin': {
         rect(x, 4, 5, 8, 10, '#d9bf87'); rect(x, 3, 7, 10, 8, '#d9bf87'); rect(x, 3, 14, 10, 1, '#b89a60');
         rect(x, 5, 4, 6, 1, '#c8aa70'); rect(x, 6, 2, 4, 2, '#b89a60'); px(x, 7, 1, '#8a6a3a'); px(x, 8, 1, '#8a6a3a');
-        const lab = { seed_carrot: '#f08a24', seed_corn: '#f4d03f', seed_tomato: '#e2402e', seed_strawberry: '#e8303e' }[id];
+        const lab = { seed_carrot: '#f08a24', seed_corn: '#f4d03f', seed_tomato: '#e2402e', seed_strawberry: '#e8303e',
+          seed_sunflower: '#ffd23a', seed_melon: '#5cb040', seed_pumpkin: '#f08a24' }[id];
         ell(x, 8, 10, 3, 3, '#f4ead8'); ell(x, 8, 10, 2, 2, lab);
         px(x, 8, 7, '#4caf3a');
         break;
@@ -532,8 +554,197 @@ const Sprites = (() => {
       case 'crate':
         rect(x, 2, 5, 12, 9, '#a8743e'); rect(x, 1, 3, 14, 3, '#8a5a2c'); rect(x, 2, 9, 12, 1, '#86562e');
         break;
+      case 'sunflower':
+        line(x, 8, 15, 8, 9, '#3d9a30'); px(x, 9, 12, '#4caf3a'); px(x, 10, 11, '#4caf3a');
+        ell(x, 8, 6, 5.5, 5.5, '#ffd23a'); ell(x, 8, 6, 2.5, 2.5, '#6a3a1a'); px(x, 5, 3, '#fff08a');
+        break;
+      case 'melon':
+        ell(x, 8, 9, 6.5, 5.5, dx => (Math.floor((dx + 1) * 5) % 2 ? '#2f7a2a' : '#5cb040')); px(x, 5, 6, '#a8e070');
+        break;
+      case 'pumpkin':
+        ell(x, 8, 9.5, 7, 5.5, dx => (Math.abs(dx) < 0.12 || Math.abs(Math.abs(dx) - 0.55) < 0.1 ? '#c8601a' : '#f08a24'));
+        rect(x, 7, 2, 2, 3, '#5a3a1a'); px(x, 9, 2, '#4caf3a'); px(x, 5, 7, '#ffb060');
+        break;
+      case 'egg':
+        ell(x, 8, 9, 4.5, 5.5, (dx, dy) => (dx + dy > 0.6 ? '#e0d6c4' : '#fbf6ec')); px(x, 6, 6, '#ffffff');
+        break;
+      case 'milk':
+        rect(x, 5, 5, 6, 10, '#f4f4f4'); rect(x, 6, 3, 4, 2, '#f4f4f4'); rect(x, 6, 2, 4, 1, '#4aa8f0');
+        rect(x, 5, 8, 6, 4, '#4aa8f0'); px(x, 7, 9, '#ffffff'); px(x, 8, 10, '#ffffff'); rect(x, 10, 5, 1, 10, '#d0d0d0');
+        break;
+      case 'hay':
+        for (let i = 0; i < 6; i++) line(x, 3 + i * 2, 14, 5 + i, 2, i % 2 ? '#e8c860' : '#d4a83a');
+        rect(x, 3, 8, 11, 2, '#a8783c');
+        break;
+      case 'bait':
+        line(x, 3, 11, 6, 8, '#e88a8a', 2); line(x, 6, 8, 10, 11, '#e88a8a', 2); line(x, 10, 11, 13, 7, '#e88a8a', 2); px(x, 13, 6, '#c86a6a');
+        break;
+      case 'sprinkler': case 'sprinkler2': x.drawImage(sprinklerObj(id === 'sprinkler2' ? 2 : 1), 0, 0); break;
+      case 'fence_item':
+        rect(x, 3, 3, 3, 11, '#b07a42'); rect(x, 10, 3, 3, 11, '#b07a42'); rect(x, 2, 6, 12, 2, '#d29a5a'); rect(x, 2, 10, 12, 2, '#d29a5a');
+        break;
+      case 'stonepath':
+        [[2, 2, 5, 4], [8, 1, 6, 5], [1, 8, 6, 5], [8, 8, 6, 6]].forEach(([a, b, w, h]) => { rect(x, a, b, w, h, '#a8a49e'); rect(x, a, b, w, 1, '#c8c4be'); });
+        break;
+      case 'flowerbed': x.drawImage(flowerbedObj(), 0, 0); break;
+      case 'lamp':
+        rect(x, 7, 9, 2, 6, '#3a3a3a'); rect(x, 4, 2, 8, 8, '#3a3a3a'); rect(x, 5, 3, 6, 6, '#ffe88a'); rect(x, 6, 4, 2, 2, '#ffffff'); rect(x, 5, 1, 6, 1, '#3a3a3a');
+        break;
+      case 'trophy': x.drawImage(trophyObj(), 0, 0); break;
+      case 'salad':
+        for (let r = 0; r < 4; r++) rect(x, 2 + r, 10 + r, 13 - r * 2, 1, r ? '#d8d0c4' : '#f4ead8');
+        ell(x, 8, 8.5, 5.5, 3, '#5cc64a'); px(x, 6, 7, '#e2402e'); px(x, 10, 8, '#f08a24'); px(x, 8, 6, '#7ad35c'); px(x, 11, 7, '#e2402e');
+        break;
+      case 'omelet':
+        ell(x, 8, 10, 7, 3.5, '#f4ead8'); ell(x, 8, 9, 5, 2.5, '#f8d040'); px(x, 6, 8, '#fff08a'); px(x, 9, 9, '#4caf3a');
+        break;
+      case 'grilled_fish':
+        ell(x, 8, 10.5, 7, 3.5, '#f4ead8'); ell(x, 8.5, 9, 4.5, 2.2, '#b8783a'); rect(x, 2, 7, 2, 4, '#a0602a');
+        line(x, 6, 8, 7, 10, '#7a4a20'); line(x, 9, 8, 10, 10, '#7a4a20'); px(x, 11, 8, '#2a1a12');
+        break;
+      case 'pamonha':
+        ell(x, 8, 9, 4, 6, '#c8d878'); line(x, 8, 3, 8, 15, '#a8b858'); rect(x, 7, 1, 2, 2, '#e8e0b0'); px(x, 6, 8, '#e8f0a8');
+        break;
+      case 'pumpkin_soup':
+        ell(x, 8, 9, 6.5, 2, '#f08a24'); px(x, 7, 9, '#ffb060');
+        for (let r = 0; r < 4; r++) rect(x, 2 + r, 10 + r, 13 - r * 2, 1, r ? '#a8783c' : '#c89a62');
+        line(x, 6, 6, 7, 3, '#e0e8f0'); line(x, 10, 6, 9, 2, '#e0e8f0');
+        break;
+      case 'cake':
+        rect(x, 3, 8, 10, 6, '#f8e0b0'); rect(x, 3, 6, 10, 2, '#ffb0c8'); rect(x, 3, 10, 10, 1, '#ffb0c8');
+        rect(x, 7, 3, 2, 3, '#e8303e'); px(x, 7, 3, '#ff8a90'); rect(x, 2, 14, 12, 1, '#d8d0c4');
+        break;
     }
     return c;
+  }
+
+  // ===================== DECORAÇÕES =====================
+  function sprinklerObj(lvl) {
+    const { c, x } = mk(16, 16);
+    const m = lvl === 2 ? ['#eef3f8', '#c3ccd6', '#8994a0'] : ['#f0a868', '#d08040', '#9a5a28'];
+    ell(x, 8, 11.5, 5.5, 3, m[1]); ell(x, 8, 11, 3.5, 1.8, m[2]);
+    rect(x, 7, 4, 2, 8, m[1]); rect(x, 7, 4, 1, 8, m[0]);
+    rect(x, 4, 4, 8, 2, m[1]); rect(x, 4, 4, 8, 1, m[0]);
+    px(x, 3, 5, '#4aa8f0'); px(x, 12, 5, '#4aa8f0'); px(x, 8, 2, '#4aa8f0');
+    if (lvl === 2) { px(x, 2, 3, '#8ad0ff'); px(x, 13, 3, '#8ad0ff'); }
+    return outline(c);
+  }
+  function lampObj() {
+    const { c, x } = mk(16, 32);
+    rect(x, 7, 12, 2, 18, '#3a3a3a'); rect(x, 5, 29, 6, 3, '#2a2a2a');
+    rect(x, 4, 4, 8, 9, '#3a3a3a'); rect(x, 5, 5, 6, 7, '#ffe88a'); rect(x, 6, 6, 2, 3, '#ffffff');
+    rect(x, 3, 3, 10, 2, '#2a2a2a'); rect(x, 5, 1, 6, 2, '#2a2a2a'); px(x, 7, 0, '#2a2a2a'); px(x, 8, 0, '#2a2a2a');
+    return outline(c, '#141414');
+  }
+  function flowerbedObj() {
+    const { c, x } = mk(16, 16);
+    rect(x, 1, 10, 14, 5, '#a8743e'); rect(x, 1, 10, 14, 1, '#c08a50'); rect(x, 2, 9, 12, 2, '#6e4420');
+    [[3, '#ff6b8a'], [6, '#ffd84a'], [9, '#a8c8ff'], [12, '#ff8a40']].forEach(([fx, col], i) => {
+      const fy = 4 + (i % 2) * 2;
+      rect(x, fx, fy + 2, 1, 9 - fy - 2 + 1, '#3d9a30');
+      px(x, fx, fy - 1, col); px(x, fx - 1, fy, col); px(x, fx + 1, fy, col); px(x, fx, fy + 1, col); px(x, fx, fy, '#fff6e0');
+    });
+    return outline(c);
+  }
+  function trophyObj() {
+    const { c, x } = mk(16, 16);
+    rect(x, 4, 13, 8, 2, '#8a5a2c'); rect(x, 6, 11, 4, 2, '#d8a828'); rect(x, 7, 9, 2, 2, '#d8a828');
+    ell(x, 8, 5, 4.5, 4, dx => (dx < -0.3 ? '#fff08a' : '#f2c230')); rect(x, 3, 1, 10, 2, '#f2c230');
+    px(x, 2, 3, '#d8a828'); px(x, 2, 4, '#d8a828'); px(x, 13, 3, '#d8a828'); px(x, 13, 4, '#d8a828');
+    return outline(c);
+  }
+  const cobbleFill = x => {
+    rect(x, 0, 0, 16, 16, '#7a766f');
+    [[1, 1, 6, 5], [8, 1, 7, 4], [1, 7, 4, 5], [6, 6, 5, 5], [12, 6, 3, 5], [1, 13, 7, 3], [9, 12, 6, 4]].forEach(([a, b, w, h]) => {
+      rect(x, a, b, w, h, '#a8a49e'); rect(x, a, b, w, 1, '#c8c4be'); rect(x, a, b + h - 1, w, 1, '#8e8a84');
+    });
+  };
+
+  // ===================== CONSTRUÇÕES =====================
+  function board() {
+    const { c, x } = mk(16, 26);
+    rect(x, 2, 12, 2, 14, '#7a4a22'); rect(x, 12, 12, 2, 14, '#7a4a22');
+    rect(x, 0, 2, 16, 13, '#a8743e'); rect(x, 0, 2, 16, 1, '#c08a50'); rect(x, 0, 14, 16, 1, '#7a4a22');
+    rect(x, 2, 4, 5, 6, '#f4ead8'); rect(x, 9, 5, 5, 5, '#fff6c0'); rect(x, 4, 10, 6, 3, '#f4ead8');
+    px(x, 4, 4, '#e8303e'); px(x, 11, 5, '#4aa8f0'); px(x, 7, 10, '#5cc64a');
+    for (const [a, b] of [[3, 6], [3, 8], [10, 7], [10, 8], [5, 11]]) rect(x, a, b, 3, 1, '#a89a8a');
+    return outline(c);
+  }
+  function coop() {
+    const { c, x } = mk(48, 46);
+    rect(x, 3, 20, 42, 26, '#d8b07a');
+    for (let y = 23; y < 46; y += 4) rect(x, 3, y, 42, 1, '#b88e58');
+    rect(x, 3, 43, 42, 3, '#8c8072');
+    rect(x, 19, 31, 10, 15, '#6a3e1c'); rect(x, 20, 32, 8, 14, '#8a5a2c'); rect(x, 23, 32, 2, 14, '#6a3e1c');
+    ell(x, 37, 28, 3.5, 3.5, '#3a2a1a'); ell(x, 37, 28, 2.5, 2.5, '#e8c860');
+    for (let y = 2; y < 22; y++) { const l = Math.max(0, Math.round(12 - (y - 2) * 0.9)); rect(x, l, y, 48 - 2 * l, 1, y % 4 === 1 ? '#7a3828' : '#a0503a'); }
+    rect(x, 0, 20, 48, 2, '#6a2a1e'); rect(x, 12, 2, 24, 1, '#c8705a');
+    ell(x, 10, 30, 3, 4, '#fbf6ec');
+    return outline(c);
+  }
+  function barn() {
+    const { c, x } = mk(64, 62);
+    rect(x, 3, 24, 58, 38, '#b8423a');
+    for (let X = 6; X < 61; X += 5) rect(x, X, 24, 1, 38, '#9c342c');
+    rect(x, 3, 24, 58, 2, '#f4ead8'); rect(x, 3, 24, 2, 38, '#f4ead8'); rect(x, 59, 24, 2, 38, '#f4ead8');
+    rect(x, 20, 36, 24, 26, '#f4ead8'); rect(x, 22, 38, 20, 24, '#8a2a24');
+    line(x, 22, 38, 41, 61, '#f4ead8', 2); line(x, 41, 38, 22, 61, '#f4ead8', 2); rect(x, 31, 38, 2, 24, '#f4ead8');
+    rect(x, 27, 27, 10, 7, '#f4ead8'); rect(x, 28, 28, 8, 5, '#3a2a1a'); rect(x, 29, 30, 6, 3, '#e8c860');
+    for (let y = 0; y < 26; y++) { const l = Math.max(0, Math.round(20 - y * 0.95)); rect(x, l, y, 64 - 2 * l, 1, y % 4 === 3 ? '#4a2a1e' : '#6a3a2a'); }
+    rect(x, 0, 24, 64, 2, '#3a1e14'); rect(x, 20, 0, 24, 1, '#8a5a44');
+    return outline(c);
+  }
+  function festTent(season) {
+    const { c, x } = mk(48, 52);
+    const cols = [['#ff8ab0', '#fff6e0'], ['#4aa8f0', '#ffe14a'], ['#e0602a', '#ffd84a'], ['#6a5ad8', '#f4f8fc']][season];
+    rect(x, 3, 14, 3, 38, '#8a5a2c'); rect(x, 42, 14, 3, 38, '#8a5a2c');
+    for (let y = 2; y < 18; y++) { const l = Math.max(0, Math.round(16 - y)); for (let X = l; X < 48 - l; X++) px(x, X, y, Math.floor(X / 6) % 2 ? cols[1] : cols[0]); }
+    for (let i = 0; i < 8; i++) ell(x, i * 6 + 3, 18, 3, 2.5, i % 2 ? cols[1] : cols[0]);
+    rect(x, 23, 0, 2, 3, '#8a5a2c'); rect(x, 25, 0, 6, 3, cols[0]);
+    rect(x, 1, 34, 46, 18, '#f4ead8'); rect(x, 1, 34, 46, 3, cols[0]); for (let X = 1; X < 47; X += 4) rect(x, X, 37, 2, 2, cols[0]);
+    rect(x, 0, 32, 48, 3, '#c08a50');
+    rect(x, 8, 26, 6, 6, '#f2c230'); rect(x, 10, 24, 2, 2, '#f2c230');
+    ell(x, 24, 29, 4, 3, '#e8303e'); rect(x, 23, 31, 2, 4, '#e8303e');
+    rect(x, 34, 27, 7, 5, season === 2 ? '#f08a24' : season === 1 ? '#8fb4cc' : season === 0 ? '#ffd23a' : '#f08a24');
+    return outline(c);
+  }
+
+  // ===================== ANIMAIS =====================
+  function flipped(src) {
+    const m = mk(src.width, src.height);
+    m.x.translate(src.width, 0); m.x.scale(-1, 1); m.x.drawImage(src, 0, 0);
+    return m.c;
+  }
+  function chicken(f) {
+    const { c, x } = mk(16, 16);
+    rect(x, 7, 13, 1, 2, '#f08a24'); rect(x, 10, 13 - f, 1, 2 + f, '#f08a24');
+    ell(x, 9, 10, 4.5, 3.5, (dx, dy) => (dy > 0.4 ? '#e8e0d4' : '#fbf8f2'));
+    rect(x, 13, 7, 2, 3, '#fbf8f2'); px(x, 14, 6, '#e8e0d4');
+    line(x, 7, 10, 10, 11, '#d8d0c4');
+    ell(x, 5, 6 + f * 0.5, 2.4, 2.4, '#fbf8f2');
+    rect(x, 4, 2 + f, 3, 2, '#e8303e'); px(x, 2, 7 + f, '#f08a24'); px(x, 4, 6 + f, '#1a1a1a'); px(x, 4, 8 + f, '#e8303e');
+    return outline(c, '#4a3a2a');
+  }
+  function cow(f) {
+    const { c, x } = mk(24, 20);
+    const legs = f ? [[5, 1], [9, 0], [14, 1], [18, 0]] : [[5, 0], [9, 1], [14, 0], [18, 1]];
+    legs.forEach(([lx, up]) => { rect(x, lx, 14, 2, 5 - up, '#f4f0e8'); rect(x, lx, 18 - up, 2, 1, '#3a2a1a'); });
+    rect(x, 4, 6, 17, 9, '#f8f4ec'); rect(x, 4, 13, 17, 2, '#e0d8cc');
+    ell(x, 9, 8, 2.5, 2, '#2a2420'); ell(x, 16, 10, 3, 2.2, '#2a2420'); px(x, 19, 7, '#2a2420');
+    rect(x, 12, 14, 3, 2, '#f0a0b0');
+    line(x, 21, 7, 22, 13, '#e0d8cc'); px(x, 22, 14, '#2a2420');
+    rect(x, 0, 4, 6, 7, '#f8f4ec'); rect(x, 0, 8, 4, 3, '#f0a0b0'); px(x, 1, 9, '#c06070');
+    px(x, 2, 6, '#1a1a1a'); px(x, 5, 3, '#c8c0b0'); px(x, 1, 3, '#c8c0b0'); rect(x, 5, 5, 2, 2, '#2a2420');
+    return outline(c, '#3a3028');
+  }
+
+  // Moradores: reaproveita o desenho do personagem trocando a paleta
+  function npcFrame(pal, dir, f) {
+    const saved = { ...C };
+    Object.assign(C, pal);
+    const fr = playerFrame('idle', dir, f, null);
+    Object.assign(C, saved);
+    return fr;
   }
 
   // ===================== PERSONAGEM (player_sheet) =====================
@@ -661,6 +872,18 @@ const Sprites = (() => {
     bin: () => memo('bin', bin),
     stall: () => memo('stall', stall),
     crop: (t, st) => memo(`crop${t}_${st}`, () => crop(t, st)),
+    cobble: m => memo(`cb${m}`, () => auto(m, cobbleFill, '#5e5a54')),
+    sprinklerObj: l => memo(`spr${l}`, () => sprinklerObj(l)),
+    lampObj: () => memo('lamp', lampObj),
+    flowerbedObj: () => memo('flowerbed', flowerbedObj),
+    trophyObj: () => memo('trophy', trophyObj),
+    board: () => memo('board', board),
+    coop: () => memo('coop', coop),
+    barn: () => memo('barn', barn),
+    festTent: s => memo(`fest${s}`, () => festTent(s)),
+    chicken: (right, f) => memo(`chk${right ? 1 : 0}${f}`, () => (right ? flipped(chicken(f)) : chicken(f))),
+    cow: (right, f) => memo(`cow${right ? 1 : 0}${f}`, () => (right ? flipped(cow(f)) : cow(f))),
+    npc: (id, dir, f) => memo(`npc${id}${dir}${f}`, () => npcFrame(NPCS[id].pal, dir, f)),
     rawIcon: id => memo(`ri${id}`, () => rawIcon(id)),
     icon: id => memo(`ic${id}`, () => {
       const m = mk(16, 16); m.x.drawImage(api.rawIcon(id), 0, 0); return outline(m.c);

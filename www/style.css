@@ -187,3 +187,39 @@ img.px.tiny { width: 16px; height: 16px; vertical-align: middle; }
   .logo { font-size: 44px; }
   .subtitle { margin-bottom: 12px; }
 }
+
+/* ---------- Qualidade, corações, ingredientes ---------- */
+.q {
+  position: absolute; left: 2px; top: 0; font-size: 13px; font-weight: bold; line-height: 1;
+  text-shadow: -1px -1px 0 #3a2414, 1px -1px 0 #3a2414, -1px 1px 0 #3a2414, 1px 1px 0 #3a2414;
+}
+.line .q { position: static; margin-left: -10px; align-self: flex-start; }
+.q1 { color: #dfe6ee; }
+.q2 { color: #ffd23a; }
+.hearts { color: #e8406a; letter-spacing: 1px; white-space: nowrap; font-size: 14px; }
+.hearts i { color: #d8c8b0; font-style: normal; }
+.ing { display: inline-flex; align-items: center; gap: 2px; margin-right: 6px; white-space: nowrap; }
+.ing.ok { color: var(--green-d); }
+.ing.no { color: #b8302a; }
+em.new { color: #e0602a; font-size: 12px; }
+.ok { color: var(--green-d); font-weight: bold; }
+.list { display: flex; flex-direction: column; }
+.tabs { flex-wrap: wrap; }
+.tab { min-width: 90px; }
+
+/* ---------- Moradores ---------- */
+.npc-head { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+.portrait {
+  width: 72px; height: 90px; object-fit: cover; object-position: 50% 10%; image-rendering: pixelated;
+  background: #cfe8b8; border: 3px solid var(--wood-d); border-radius: 10px;
+}
+.speech {
+  background: #fff; border: 3px solid var(--wood-d); border-radius: 12px; padding: 10px 12px; margin: 6px 0;
+  font-size: 15px; position: relative;
+}
+.speech::before {
+  content: ''; position: absolute; left: 26px; top: -11px; border: 8px solid transparent; border-bottom-color: var(--wood-d);
+}
+.line.ach { opacity: .6; }
+.line.ach.got { opacity: 1; }
+.line > span.emo { flex: 0 0 auto; font-size: 22px; }
