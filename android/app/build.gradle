@@ -1,0 +1,22 @@
+plugins { id "com.android.application" }
+
+android {
+    namespace "com.atrasado.game"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.atrasado.game"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.1"
+    }
+
+    // O jogo é o mesmo HTML5 de web/index.html, empacotado como asset (roda offline).
+    sourceSets { main { assets.srcDirs = ["../../web"] } }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
