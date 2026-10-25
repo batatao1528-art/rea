@@ -117,7 +117,7 @@
 <div id="menu" class="screen show outline">
   <h1>ATRASADO!</h1>
   <p class="sub">Toque para trocar de calçada.<br>Troque no último segundo!</p>
-  <div class="stats">Recorde <b id="menuBest">0m</b> · Mais perto do busão <b id="menuClosest">—</b><br>🎫 <b id="menuCoins">0</b> vales</div>
+  <div class="stats">Recorde <b id="menuBest">0m</b> · Mais perto do busão <b id="menuClosest">—</b><br>🎫 <b id="menuCoins">0</b> vales · Lugares <b id="menuPlaces">1/4</b></div>
   <div class="spacer"></div>
   <p class="blink">TOQUE PARA CORRER</p>
   <div class="row">
@@ -221,6 +221,7 @@ const MISSION_POOL = {
   combo:  { text: (n) => `Faça um combo x${n}`,            targets: [2, 3, 4, 6, 8],         rewards: [40, 70, 110, 160, 220] },
   bus:    { text: (n) => `Chegue a ${n}m do busão`,        targets: [9, 6, 4, 3, 2],         rewards: [40, 70, 110, 160, 220], lessIsBetter: true },
   teases: { text: (n) => `Veja o busão fugir ${n}x`,       targets: [1, 2, 3, 4, 6],         rewards: [40, 70, 110, 160, 220] },
+  places: { text: (n) => `Passe por ${n} lugares`,         targets: [2, 3, 4, 4, 4],         rewards: [60, 120, 200, 260, 320] },
 };
 
 const ESCAPE_LINES = ["VOLTA AQUI!", "ESPERA!!!", "PARA, MOÇO!", "SÉRIO?!", "O MOTORISTA TE VIU...<br>E ACELEROU.", "QUASE!!!", "NÃÃÃO!"];
@@ -294,7 +295,7 @@ const store = {
 const SAVE_KEY = "atrasado_save_v1";
 const save = Object.assign({
   best: store.get("atrasado_best", 0), closest: null, coins: 0, owned: ["classic"], skin: "classic",
-  muted: false, tutorialDone: false, quality: 2, runs: 0, missions: null, mlevels: {},
+  muted: false, tutorialDone: false, quality: 2, runs: 0, missions: null, mlevels: {}, places: ["city"],
 }, store.get(SAVE_KEY, {}));
 const persist = () => store.set(SAVE_KEY, save);
 if (!save.missions) {
@@ -439,7 +440,7 @@ function shadow(x, z, w, len) {
 const G = {
   state: "menu", speed: CFG.startSpeed, dist: 0, bonus: 0, coins: 0, banked: 0,
   usedRevive: false, doubled: false, newRecord: false, timeScale: 1, slowUntil: 0,
-  deathAt: 0, runTime: 0, combo: 0, lastNear: 0, nears: 0, bestCombo: 0, teases: 0, closestBus: Infinity,
+  deathAt: 0, runTime: 0, biome: "city", visited: new Set(["city"]), combo: 0, lastNear: 0, nears: 0, bestCombo: 0, teases: 0, closestBus: Infinity,
   countT: 0, tutorial: false, tutHold: false, killer: null, missionLog: [],
 };
 const difficulty = () => clamp((G.speed - CFG.startSpeed) / (CFG.maxSpeed - CFG.startSpeed), 0, 1);
@@ -511,23 +512,78 @@ function addBreather() {
   for (let z = CFG.spawnZ + 3; z < CFG.spawnZ + len * 0.6; z += 1.6) coins.push({ x: laneX(lane), z, seed: Math.random() * 6 });
 }
 
+// ================= Lugares (mudam com a distância) =================
+const BIOMES = [
+  { id: "city",   name: "CENTRO",              icon: "🏙️", len: 500 },
+  { id: "beach",  name: "ORLA DA PRAIA",       icon: "🏖️", len: 500 },
+  { id: "bridge", name: "PONTE",               icon: "🌉", len: 300 },
+  { id: "road",   name: "ESTRADA DO INTERIOR", icon: "🌾", len: 700 },
+];
+let BIOME_CYCLE = 0;
+for (const b of BIOMES) { b.start = BIOME_CYCLE; BIOME_CYCLE += b.len; }
+const cyclePos = (wd) => ((wd % BIOME_CYCLE) + BIOME_CYCLE) % BIOME_CYCLE;
+function biomeAt(wd) {
+  const t = cyclePos(wd);
+  for (let i = BIOMES.length - 1; i >= 0; i--) if (t >= BIOMES[i].start) return BIOMES[i];
+  return BIOMES[0];
+}
+/** Trechos [z0, z1] da tela e o lugar de cada um. */
+function biomeSegments(near, far) {
+  const segs = [];
+  let z = near;
+  while (z < far - 0.01) {
+    const b = biomeAt(G.dist + z), end = Math.min(far, Math.max(z + 0.01, z + (b.start + b.len - cyclePos(G.dist + z))));
+    segs.push({ z0: z, z1: end, b });
+    z = end;
+  }
+  return segs;
+}
+
 // ================= Cenário =================
 const SIGNS = ["PADARIA", "FARMÁCIA", "BAR DO ZÉ", "AÇAÍ", "PASTEL", "SALÃO", "MERCADINHO", "LOTÉRICA", "CHAVEIRO", "SORVETES"];
 const AWNINGS = ["#FF4F5A", "#3EE6A1", "#FF9F1C", "#6EC6FF", "#C3B1E1"];
 const TRIMS = ["#FFFFFF", "#F4E1C1", "#2B2D42"];
+const BILLBOARDS = ["BUSÃO? SÓ AMANHÃ.", "PASTEL A 2 KM", "VENDE-SE GALINHA", "PAMONHA QUENTINHA", "CALDO DE CANA 300m", "FAZENDA BOA VISTA"];
+
 function makeBuilding(side, z, len) {
-  return { side, z, len, w: rand(2.5, 4), h: rand(3.4, 9), color: pick(PAL.buildings), gap: rand(0.3, 1.2), seed: Math.random() * 1000,
-    shop: Math.random() < 0.55, sign: pick(SIGNS), awning: pick(AWNINGS), trim: pick(TRIMS), tank: Math.random() < 0.4 };
+  const b = biomeAt(G.dist + z).id;
+  const base = { side, z, len, gap: rand(0.3, 1.2) };
+  if (b === "city" || (b === "beach" && side < 0)) {
+    return Object.assign(base, { kind: "building", w: rand(2.5, 4), h: b === "beach" ? rand(3.4, 5.5) : rand(3.4, 9), color: pick(PAL.buildings),
+      seed: Math.random() * 1000, shop: Math.random() < 0.55, sign: pick(SIGNS), awning: pick(AWNINGS), trim: pick(TRIMS), tank: Math.random() < 0.4 });
+  }
+  return Object.assign(base, { kind: "empty" });
 }
-const PROP_KINDS = ["tree", "tree", "lamp", "lamp", "hydrant", "bin"];
-const makeProp = (side, z) => ({ side, z, kind: pick(PROP_KINDS) });
+
+const PROP_SETS = {
+  city:   { kinds: ["tree", "tree", "lamp", "lamp", "hydrant", "bin"], gap: [5, 9] },
+  beachL: { kinds: ["palm", "palm", "lamp", "kiosk"], gap: [4, 8] },
+  beachR: { kinds: ["palm", "umbrella", "umbrella", "umbrella", "lifeguard", "kiosk"], gap: [3, 6] },
+  bridge: { kinds: ["lamp", "lamp", "lamp", "pylon"], gap: [7, 9] },
+  road:   { kinds: ["bush", "bush", "bush", "tree", "fence", "fence", "cow", "billboard"], gap: [2.5, 6] },
+};
+function propSet(side, wd) {
+  const b = biomeAt(wd).id;
+  return b === "beach" ? (side < 0 ? PROP_SETS.beachL : PROP_SETS.beachR) : PROP_SETS[b];
+}
+function makeProp(side, z) {
+  const b = biomeAt(G.dist + z).id, kind = pick(propSet(side, G.dist + z).kinds);
+  let xo = 0;
+  if (kind === "umbrella" || kind === "lifeguard") xo = rand(1.2, 5.5);
+  else if (kind === "kiosk" && side > 0) xo = rand(1, 3);
+  else if (kind === "bush") xo = rand(0, 7);
+  else if (kind === "cow") xo = rand(2, 7);
+  else if (kind === "tree" && b === "road") xo = rand(0.5, 9);
+  else if (kind === "billboard") xo = 1.4;
+  return { side, z, kind, xo, planter: b === "city", seed: Math.random(), color: pick(AWNINGS), text: pick(BILLBOARDS) };
+}
 const props = [];
 function initDecor() {
   decor.length = 0; props.length = 0;
   for (const side of [-1, 1]) {
     let z = -8;
     while (z < CFG.farZ + 10) { const w = rand(2.5, 4.5); decor.push(makeBuilding(side, z + w / 2, w)); z += w + rand(0.3, 1.2); }
-    for (let pz = -6; pz < CFG.farZ + 10; pz += rand(5, 9)) props.push(makeProp(side, pz));
+    for (let pz = -6; pz < CFG.farZ + 10;) { props.push(makeProp(side, pz)); const g = propSet(side, G.dist + pz).gap; pz += rand(g[0], g[1]); }
   }
 }
 initDecor();
@@ -582,7 +638,8 @@ function resetRun() {
   coins.length = 0; particles.length = 0;
   Object.assign(G, { speed: CFG.startSpeed, dist: 0, bonus: 0, coins: 0, banked: 0, usedRevive: false, doubled: false, newRecord: false,
     timeScale: 1, slowUntil: 0, runTime: 0, combo: 0, nears: 0, bestCombo: 0, teases: 0, closestBus: Infinity,
-    tutorial: false, tutHold: false, killer: null, missionLog: [] });
+    tutorial: false, tutHold: false, killer: null, missionLog: [], biome: "city", visited: new Set(["city"]) });
+  initDecor();
   Object.assign(player, { lane: 1, x: CFG.lane, fromX: CFG.lane, toX: CFG.lane, prog: 1, dead: false, dy: 0, vy: 0, dz: 0, vz: 0, rot: 0, vrot: 0, holeZ: null });
   resetBus();
   $("hint").classList.add("hidden"); $("count").classList.add("hidden");
@@ -667,7 +724,7 @@ function missionInfo(id) {
   return { m, target: m.targets[lvl], reward: m.rewards[lvl] };
 }
 function checkMissions() {
-  const stats = { nears: G.nears, dist: G.dist, coins: G.coins, combo: G.bestCombo, bus: G.closestBus, teases: G.teases };
+  const stats = { nears: G.nears, dist: G.dist, coins: G.coins, combo: G.bestCombo, bus: G.closestBus, teases: G.teases, places: G.visited.size };
   save.missions = save.missions.map((id) => {
     const { m, target, reward } = missionInfo(id);
     const ok = m.lessIsBetter ? stats[id] <= target : stats[id] >= target;
@@ -748,6 +805,7 @@ function refreshMenu() {
   $("menuBest").textContent = save.best + "m";
   $("menuClosest").textContent = save.closest === null ? "—" : String(save.closest).replace(".", ",") + "m";
   $("menuCoins").textContent = save.coins;
+  $("menuPlaces").textContent = `${save.places.length}/${BIOMES.length}`;
   $("btnSound").textContent = save.muted ? "🔇" : "🔊";
 }
 
@@ -966,6 +1024,13 @@ function update(dt, realDt) {
     G.runTime += dt;
     G.speed = Math.min(CFG.maxSpeed, G.speed + CFG.accel * dt);
     G.dist += G.speed * dt;
+    const bio = biomeAt(G.dist);
+    if (bio.id !== G.biome) {
+      G.biome = bio.id; G.visited.add(bio.id);
+      const isNew = !save.places.includes(bio.id);
+      if (isNew) { save.places.push(bio.id); persist(); sfx.record(); }
+      popText($("banner"), `${bio.icon} ${bio.name}${isNew ? "<small>Lugar novo descoberto!</small>" : ""}`);
+    }
     if (G.combo > 0 && G.runTime - G.lastNear > CFG.comboTimeout) G.combo = 0;
 
     // Dica de primeira partida: o tempo quase para até o primeiro toque.
@@ -1019,8 +1084,9 @@ function update(dt, realDt) {
     b.z -= ws * dt;
     if (b.z + b.len / 2 < -8) {
       let maxZ = -Infinity; for (const o of decor) if (o.side === b.side) maxZ = Math.max(maxZ, o.z + o.len / 2);
-      Object.assign(b, makeBuilding(b.side, 0, rand(2.5, 4.5)));
-      b.z = maxZ + b.gap + b.len / 2;
+      const side = b.side, len = rand(2.5, 4.5), gap = rand(0.3, 1.2);
+      for (const k in b) delete b[k];
+      Object.assign(b, makeBuilding(side, maxZ + gap + len / 2, len));
     }
   }
 
@@ -1028,7 +1094,8 @@ function update(dt, realDt) {
     p.z -= ws * dt;
     if (p.z < -8) {
       let maxZ = -Infinity; for (const o of props) if (o.side === p.side) maxZ = Math.max(maxZ, o.z);
-      Object.assign(p, makeProp(p.side, maxZ + rand(5, 9)));
+      const g = propSet(p.side, G.dist + maxZ).gap;
+      Object.assign(p, makeProp(p.side, maxZ + rand(g[0], g[1])));
     }
   }
   for (const c of clouds) { c.x += c.v * realDt * (playing ? 1.6 : 1); if (c.x > 1.3) { c.x = -0.3; c.y = rand(0.1, 0.75); } }
@@ -1064,12 +1131,133 @@ function drawClouds() {
   }
 }
 
-function drawSkyline() {
-  ctx.fillStyle = rgbStr(mixRgb(ENV.hor, ENV.top, 0.35));
-  for (const [x, h, w] of skyline) ctx.fillRect(x, HOR - h, w - 2, h + 2);
-  if (ENV.night > 0.5) {
+const GROUND = { city: PAL.asphalt, beach: "#3FB8D8", bridge: "#3E8FB8", road: "#7DBE6A" };
+const SIDEWALK = {
+  city:   { base: PAL.cream, joint: PAL.curb, step: 1.5, wave: "#D7A274", bands: [-0.5, 0.5], curb: true },
+  beach:  { base: "#F3EFE6", joint: null, wave: "#2E2E3A", bands: [-0.7, 0, 0.7], curb: true },  // calçadão de Copacabana
+  bridge: { base: "#CDCFD8", joint: "#AEB1BD", step: 3, wave: null },
+  road:   { base: "#D7B98C", joint: null, wave: null, pebbles: "#B89A6E", edgeLine: true },
+};
+
+function drawSkyline(bid) {
+  const tint = (hex, k) => rgbStr(mixRgb(mixRgb(ENV.hor, ENV.top, 0.3), hexToRgb(hex), k));
+  if (bid === "road") {
+    for (const [amp, off, col, k] of [[0.07, 1, "#5E9E62", 0.25], [0.045, 3.4, "#4E8F3A", 0.4]]) {
+      ctx.fillStyle = tint(col, k * (1 - ENV.night * 0.6));
+      ctx.beginPath(); ctx.moveTo(-10, HOR + 2);
+      for (let x = -10; x <= W + 10; x += 8) ctx.lineTo(x, HOR - (amp * 0.6 + amp * 0.5 * Math.sin(x * 0.011 + off) + amp * 0.25 * Math.sin(x * 0.037 + off)) * H);
+      ctx.lineTo(W + 10, HOR + 2); ctx.fill();
+    }
+    return;
+  }
+  if (bid === "beach") {
+    ctx.fillStyle = tint("#4E8F6A", 0.3);
+    ctx.beginPath(); ctx.moveTo(-10, HOR + 2);
+    ctx.lineTo(W * 0.02, HOR - H * 0.05);
+    ctx.ellipse(W * 0.14, HOR, W * 0.085, H * 0.13, 0, Math.PI, Math.PI * 1.65);  // Pão de Açúcar
+    ctx.lineTo(W * 0.24, HOR - H * 0.04);
+    ctx.ellipse(W * 0.31, HOR, W * 0.06, H * 0.07, 0, Math.PI * 1.1, Math.PI * 2);
+    ctx.lineTo(W * 0.45, HOR + 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = tint("#2B2D42", 0.3); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W * 0.155, HOR - H * 0.128); ctx.lineTo(W * 0.31, HOR - H * 0.069); ctx.stroke(); // bondinho
+    ctx.fillStyle = tint("#3FB8D8", 0.35); ctx.fillRect(W * 0.42, HOR - 3, W * 0.6, 5);
+    return;
+  }
+  ctx.fillStyle = tint("#8A8FB8", 0.08);
+  const k = bid === "bridge" ? 0.55 : 1;
+  for (const [x, h, w] of skyline) ctx.fillRect(x, HOR - h * k, w - 2, h * k + 2);
+  if (ENV.night > 0.5 && save.quality >= 2) {
     ctx.fillStyle = `rgba(255,227,138,${(ENV.night - 0.5) * 1.2})`;
-    if (save.quality >= 2) for (const [x, h, w] of skyline) for (let yy = HOR - h + 5; yy < HOR - 3; yy += 7) if (hash(x * 0.37 + yy) > 0.6) ctx.fillRect(x + 3, yy, 2, 2);
+    for (const [x, h, w] of skyline) for (let yy = HOR - h * k + 5; yy < HOR - 3; yy += 7) if (hash(x * 0.37 + yy) > 0.6) ctx.fillRect(x + 3, yy, 2, 2);
+  }
+}
+
+/** Chão grande dividido em pedaços para a névoa ficar suave. */
+function fogQuad(x0, x1, z0, z1, y, hex, k) {
+  for (let z = z0; z < z1;) {
+    const ze = Math.min(z1, z + (z < 40 ? 14 : 30));
+    quadZ(x0, x1, z, ze, y, shade(hex, k || 1, fogAt((z + ze) / 2)));
+    z = ze;
+  }
+}
+
+function drawGround(sg, far) {
+  const L = CFG.lane, outer = L + 1.05, bx = L + 1.6, z0 = sg.z0, z1 = sg.z1 >= far - 0.01 ? 170 : sg.z1;
+  const canteiro = (s) => {
+    fogQuad(s * outer, s * bx, z0, z1, 0.001, "#79C27D");
+    quadZ(s * outer, s * (outer + 0.07), z0, sg.z1, 0.002, shade("#5E9E62"));
+    fogQuad(s * bx, s * 90, z0, z1, ROAD_Y, PAL.asphalt);
+  };
+  switch (sg.b.id) {
+    case "city": canteiro(-1); canteiro(1); break;
+    case "beach": {
+      canteiro(-1);
+      fogQuad(outer, 8.5, z0, z1, 0.001, "#F4D9A0");
+      fogQuad(8.5, 9.3, z0, z1, 0.001, "#DCC089");
+      fogQuad(9.3, 90, z0, z1, -0.2, "#3FB8D8");
+      fogQuad(14, 90, z0, z1, -0.199, "#2FA3C8");
+      const t = performance.now() / 1000;
+      for (let k = 0; k < 3; k++) {
+        const fx = 9.3 + (1 - ((t * 0.22 + k / 3) % 1)) * 6;
+        fogQuad(fx, fx + 0.22, z0, Math.min(z1, 85), -0.19, "#E8F8FF");
+      }
+      break;
+    }
+    case "bridge":
+      for (const s of [-1, 1]) {
+        fogQuad(s * (outer + 0.45), s * 90, z0, z1, -7, "#3E8FB8");
+        for (let i = Math.ceil((G.dist + z0) / 9); i * 9 - G.dist < Math.min(z1, 80); i++) {
+          const z = i * 9 - G.dist, h = hash(i * 3 + s);
+          fogQuad(s * (outer + 3 + h * 20), s * (outer + 4.5 + h * 20), z, z + 0.4, -6.99, "#6CB4D6");
+        }
+        fogQuad(s * outer, s * (outer + 0.45), z0, sg.z1, 0.001, "#B9BCC8");
+        const rx = s * (outer + 0.4);
+        poly([P(rx, 0.92, z0), P(rx, 1.05, z0), P(rx, 1.05, sg.z1), P(rx, 0.92, sg.z1)], shade("#E8434E"));
+        poly([P(rx, 0.5, z0), P(rx, 0.57, z0), P(rx, 0.57, sg.z1), P(rx, 0.5, sg.z1)], shade("#C9343F"));
+        for (let i = Math.ceil((G.dist + z0) / 2.5); i * 2.5 - G.dist < Math.min(sg.z1, 60); i++) box(rx, 0, i * 2.5 - G.dist, 0.1, 1.05, 0.1, "#C9CCD8");
+      }
+      break;
+    case "road":
+      for (const s of [-1, 1]) {
+        fogQuad(s * outer, s * 90, z0, z1, 0.001, "#7DBE6A");
+        fogQuad(s * (outer + 2), s * (outer + 4), z0, z1, 0.002, "#88C875");
+        fogQuad(s * (outer + 7), s * (outer + 10), z0, z1, 0.002, "#88C875");
+      }
+      break;
+  }
+}
+
+function drawSidewalks(segs) {
+  const L = CFG.lane, inner = L - 1.05, maxZ = [28, 48, 70][save.quality], chunk = 8;
+  for (const sg of segs) {
+    const st = SIDEWALK[sg.b.id];
+    for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, sg.z0, sg.z1, 0, shade(st.base));
+    const zA = sg.z0, zB = Math.min(sg.z1, maxZ);
+    if (st.curb) for (const s of [-1, 1]) quadZ(s * inner, s * (L - 0.92), sg.z0, sg.z1, 0.003, shade("#E8D3AE"));
+    if (st.edgeLine) for (const s of [-1, 1]) quadZ(s * (inner - 0.14), s * (inner - 0.06), sg.z0, sg.z1, ROAD_Y + 0.002, shade("#FFFFFF", 0.95));
+    if (zB <= zA) continue;
+    if (st.joint) {
+      for (let z = Math.ceil((G.dist + zA) / st.step) * st.step - G.dist; z < zB; z += st.step) {
+        const col = shade(st.joint, 1, fogAt(z));
+        for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, z, z + 0.05, 0.001, col);
+      }
+    }
+    if (st.wave) for (const s of [-1, 1]) for (const off of st.bands) {
+      for (let z0 = zA; z0 < zB; z0 += chunk) {
+        const a = [], b = [], z1 = Math.min(zB, z0 + chunk), fog = fogAt((z0 + z1) / 2);
+        for (let z = z0; z <= z1 + 0.01; z += 0.8) {
+          const x = s * L + off + 0.2 * Math.sin((Math.min(z, z1) + G.dist) * 0.9);
+          a.push(P(x - 0.08, 0.002, Math.min(z, z1))); b.push(P(x + 0.08, 0.002, Math.min(z, z1)));
+        }
+        poly(a.concat(b.reverse()), shade(st.wave, 1, fog));
+      }
+    }
+    if (st.pebbles && save.quality >= 1) {
+      for (let i = Math.ceil((G.dist + zA) / 0.9); i * 0.9 - G.dist < Math.min(zB, 40); i++) {
+        const z = i * 0.9 - G.dist;
+        for (const s of [-1, 1]) { const h = hash(i * 2 + s); if (h < 0.5) ball(s * (L - 0.9 + h * 3.6), 0.01, z, 0.05, st.pebbles); }
+      }
+    }
   }
 }
 
@@ -1086,13 +1274,15 @@ function drawWorld() {
   ctx.beginPath(); ctx.arc(W * 0.8, HOR * 0.45, r, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.sun); ctx.fill();
   if (ENV.night > 0.5) { ctx.beginPath(); ctx.arc(W * 0.8 + r * 0.45, HOR * 0.45 - r * 0.2, r * 0.85, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.top); ctx.fill(); }
   drawClouds();
-  drawSkyline();
+  drawSkyline(biomeAt(G.dist + 50).id);
 
-  const near = NEAR(), far = CFG.farZ, L = CFG.lane, inner = L - 1.05, outer = L + 1.05, bx = L + 1.6, ry = ROAD_Y;
-  ctx.fillStyle = shade(PAL.asphalt, 1, 0.5); ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
-  quadZ(-60, 60, near, far, ry, shade(PAL.asphalt));
+  const near = NEAR(), far = CFG.farZ, L = CFG.lane, inner = L - 1.05, ry = ROAD_Y;
+  ctx.fillStyle = shade(GROUND[biomeAt(G.dist + far).id], 1, 0.6); ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
+  const segs = biomeSegments(near, far);
+  for (const sg of segs) drawGround(sg, far);
 
-  // remendos e manchas de óleo no asfalto (determinísticos pela distância)
+  // asfalto do meio
+  quadZ(-inner, inner, near, far, ry, shade(PAL.asphalt));
   const seg = 5;
   for (let i = Math.floor((G.dist + near) / seg); i * seg - G.dist < far; i++) {
     const h = hash(i), z = i * seg - G.dist + hash(i + 0.5) * seg, fog = fogAt(z);
@@ -1106,35 +1296,32 @@ function drawWorld() {
       ctx.fillStyle = `rgba(25,25,45,${0.3 * (1 - fog)})`; ctx.fill();
     }
   }
-  // faixa central tracejada
   const dstep = 5, doff = G.dist % dstep;
   for (let z = -doff; z < far; z += dstep) { if (z + 2 < near) continue; quadZ(-0.05, 0.05, Math.max(z, near), z + 2, ry + 0.002, shade("#FFE38A", 0.95, fogAt(z))); }
-  // faixa de pedestre a cada 90m
+  // faixa de pedestre a cada 90m (só na cidade)
   const cw = 90, sw = (2 * inner) / 5;
   for (let k = Math.ceil((G.dist + near - 3) / cw); k * cw - G.dist < far; k++) {
-    const z = k * cw - G.dist; if (z + 2.4 < near) continue;
+    const z = k * cw - G.dist; if (z + 2.4 < near || biomeAt(G.dist + z).id !== "city") continue;
     const col = shade("#FFFFFF", 0.97, fogAt(z));
     for (let j = 0; j < 5; j += 2) quadZ(-inner + j * sw, -inner + (j + 1) * sw, Math.max(z, near), z + 2.4, ry + 0.003, col);
   }
-  // meio-fio: face vertical voltada para o asfalto
   for (const s of [-1, 1]) { const xe = s * inner; poly([P(xe, ry, near), P(xe, 0, near), P(xe, 0, far), P(xe, ry, far)], shade("#B39C7E")); }
 
-  // calçadas
-  for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, near, far, 0, shade(PAL.cream));
-  drawSidewalkPattern();
+  drawSidewalks(segs);
 
-  // canteiros com florzinhas
-  for (const s of [-1, 1]) {
-    quadZ(s * outer, s * bx, near, far, 0.001, shade("#79C27D"));
-    quadZ(s * outer, s * (outer + 0.07), near, far, 0.002, shade("#5E9E62"));
-  }
-  const fseg = 1.7, flowers = ["#FF4F5A", "#FFD23F", "#FFFFFF", "#C3B1E1"];
-  for (let i = Math.floor((G.dist + near) / fseg); i * fseg - G.dist < 60; i++) {
-    const z = i * fseg - G.dist + hash(i + 0.1) * fseg; if (z < near) continue;
-    for (const s of [-1, 1]) {
-      const h = hash(i * 2 + s);
-      if (h < 0.45 && save.quality >= 2) ball(s * (outer + 0.12 + h * 0.8), 0.06, z, 0.05, flowers[(h * 40 | 0) % 4]);
-      else if (h > 0.7) ball(s * (outer + 0.15 + (h - 0.7) * 1.2), 0.04, z, 0.08, "#5E9E62");
+  // florzinhas (cidade e lado dos prédios na orla) e mato (estrada)
+  if (save.quality >= 2) {
+    const outer = L + 1.05, fseg = 1.7, flowers = ["#FF4F5A", "#FFD23F", "#FFFFFF", "#C3B1E1"];
+    for (let i = Math.floor((G.dist + near) / fseg); i * fseg - G.dist < 60; i++) {
+      const z = i * fseg - G.dist + hash(i + 0.1) * fseg; if (z < near) continue;
+      const bid = biomeAt(G.dist + z).id;
+      for (const s of [-1, 1]) {
+        const h = hash(i * 2 + s);
+        if (bid === "road") { if (h < 0.6) ball(s * (outer + 0.2 + h * 5), 0.05, z, 0.09 + h * 0.08, h < 0.15 ? "#FFD23F" : "#5E9E62"); continue; }
+        if (bid === "bridge" || (bid === "beach" && s > 0)) continue;
+        if (h < 0.45) ball(s * (outer + 0.12 + h * 0.8), 0.06, z, 0.05, flowers[(h * 40 | 0) % 4]);
+        else if (h > 0.7) ball(s * (outer + 0.15 + (h - 0.7) * 1.2), 0.04, z, 0.08, "#5E9E62");
+      }
     }
   }
 
@@ -1143,30 +1330,28 @@ function drawWorld() {
   ctx.fillStyle = fg; ctx.fillRect(-20, HOR - 1, W + 40, H * 0.08);
 }
 
-function drawSidewalkPattern() {
-  const near = NEAR(), L = CFG.lane, maxZ = [28, 48, 70][save.quality], chunk = 8;
-  // juntas das placas
-  const step = 1.5, off = G.dist % step;
-  for (let z = -off + step; z < maxZ; z += step) {
-    if (z < near) continue;
-    const col = shade(PAL.curb, 0.98, fogAt(z));
-    for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, z, z + 0.05, 0.001, col);
-  }
-  // ondas de pedra portuguesa (calçadão)
-  for (const s of [-1, 1]) for (const off2 of [-0.5, 0.5]) {
-    for (let z0 = near; z0 < maxZ; z0 += chunk) {
-      const a = [], b = [], fog = fogAt(z0 + chunk / 2);
-      for (let z = z0; z <= z0 + chunk + 0.01; z += 0.8) {
-        const x = s * L + off2 + 0.2 * Math.sin((z + G.dist) * 0.9);
-        a.push(P(x - 0.08, 0.002, z)); b.push(P(x + 0.08, 0.002, z));
-      }
-      poly(a.concat(b.reverse()), shade("#D7A274", 1, fog));
-    }
-  }
-  // pedra do meio-fio
-  for (const s of [-1, 1]) quadZ(s * (L - 1.05), s * (L - 0.92), near, CFG.farZ, 0.003, shade("#E8D3AE"));
+/** Texto de frente para a câmera (placas, outdoors). */
+function faceText(x, y, z, text, sizeM, maxWm, color) {
+  const p = P(x, y, z), s = scaleAt(z) * KX;
+  if (sizeM * s < 5) return;
+  ctx.font = `900 ${sizeM * s}px sans-serif`;
+  const tw = ctx.measureText(text).width, k = Math.min(1, (maxWm * s) / tw);
+  ctx.save(); ctx.translate(p[0], p[1]); ctx.scale(k, 1);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = color; ctx.fillText(text, 0, 0);
+  ctx.restore();
 }
 
+function drawWelcome(z, b) {
+  if (z > CFG.farZ - 5 || z < CFG.camZ + 0.5) return;
+  const x = CFG.lane + 1.33 + 1.5, fog = fogAt(z);
+  box(x - 1.1, 0, z, 0.1, 3.0, 0.1, "#9A9AAA"); box(x + 1.1, 0, z, 0.1, 3.0, 0.1, "#9A9AAA");
+  faceZ(x - 1.4, x + 1.4, 1.75, 3.05, z - 0.06, shade("#FFFFFF", 1, fog));
+  faceZ(x - 1.33, x + 1.33, 1.82, 2.98, z - 0.07, shade("#2E8B57", 1, fog));
+  if (fog < 0.6) {
+    faceText(x, 2.68, z - 0.08, "BEM-VINDO À", 0.26, 2.4, "#FFFFFF");
+    faceText(x, 2.2, z - 0.08, b.name, 0.42, 2.5, "#FFFFFF");
+  }
+}
 function wallSign(fx, side, y0, y1, za, zb, text, col, fog) {
   const face = (ya, yb, z0, z1, c) => poly([P(fx, ya, z0), P(fx, yb, z0), P(fx, yb, z1), P(fx, ya, z1)], c);
   face(y0 - 0.04, y1 + 0.04, za - 0.04, zb + 0.04, shade("#FFFFFF", 0.95, fog));
@@ -1184,6 +1369,7 @@ function wallSign(fx, side, y0, y1, za, zb, text, col, fog) {
 }
 
 function drawBuilding(b) {
+  if (b.kind === "empty") return;
   const x = b.side * (CFG.lane + 1.6 + b.w / 2), fog = fogAt(b.z);
   box(x, 0, b.z, b.w, b.h, b.len, b.color, { noTop: true });
   const z0 = b.z - b.len / 2, z1 = b.z + b.len / 2;
@@ -1240,26 +1426,27 @@ function drawBuilding(b) {
 
 function drawProp(p) {
   if (p.z > CFG.farZ - 5 || p.z < CFG.camZ + 0.5) return;
-  const x = p.side * (CFG.lane + 1.33), z = p.z, fog = fogAt(z);
+  const sd = p.side, x = sd * (CFG.lane + 1.33 + p.xo), z = p.z, fog = fogAt(z);
+  if (fog > 0.93) return;
+  const s = scaleAt(z) * KX, ink = "rgba(43,45,66,.85)";
   switch (p.kind) {
     case "tree":
       shadow(x, z, 1.1, 1.1);
-      box(x, 0, z, 0.55, 0.18, 0.55, "#B98B5E");
+      if (p.planter) box(x, 0, z, 0.55, 0.18, 0.55, "#B98B5E");
       box(x, 0.18, z, 0.13, 1.25, 0.13, "#7B4A2A");
-      ball(x + p.side * 0.15, 1.55, z + 0.15, 0.5, "#3E9A5C");
+      ball(x + sd * 0.15, 1.55, z + 0.15, 0.5, "#3E9A5C");
       ball(x, 1.8, z, 0.62, "#4CAF6A");
-      ball(x - p.side * 0.25, 1.62, z - 0.2, 0.42, "#5CC27A");
-      ball(x - p.side * 0.12, 1.98, z - 0.12, 0.25, "#7ED69A");
+      ball(x - sd * 0.25, 1.62, z - 0.2, 0.42, "#5CC27A");
+      ball(x - sd * 0.12, 1.98, z - 0.12, 0.25, "#7ED69A");
       break;
     case "lamp": {
-      const hx = x - p.side * 0.75;
+      const hx = x - sd * 0.75;
       box(x, 0, z, 0.1, 3.3, 0.1, "#4A4E6A");
-      box(x - p.side * 0.38, 3.22, z, 0.76, 0.07, 0.07, "#4A4E6A");
+      box(x - sd * 0.38, 3.22, z, 0.76, 0.07, 0.07, "#4A4E6A");
       box(hx, 3.06, z, 0.32, 0.16, 0.24, "#4A4E6A");
       ball(hx, 3.03, z - 0.05, 0.09, ENV.night > 0.4 ? "#FFF2B0" : "#E8E8F0");
       if (ENV.night > 0.3 && fog < 0.6 && save.quality >= 1) {
-        const a = (ENV.night - 0.3) * 1.4 * (1 - fog);
-        const bp = P(hx, 3.0, z), s = scaleAt(z) * KX;
+        const a = (ENV.night - 0.3) * 1.4 * (1 - fog), bp = P(hx, 3.0, z);
         ctx.save(); ctx.globalCompositeOperation = "lighter";
         let g = ctx.createRadialGradient(bp[0], bp[1], 0, bp[0], bp[1], 0.9 * s);
         g.addColorStop(0, `rgba(255,220,130,${0.55 * a})`); g.addColorStop(1, "rgba(255,220,130,0)");
@@ -1283,6 +1470,95 @@ function drawProp(p) {
       box(x, 0, z, 0.06, 0.45, 0.06, "#4A4E6A");
       box(x, 0.35, z, 0.34, 0.5, 0.34, "#FF9F1C");
       faceZ(x - 0.12, x + 0.12, 0.72, 0.78, z - 0.175, shade("#2B2D42", 1, fog));
+      break;
+    case "palm": {
+      shadow(x, z, 1, 1);
+      let tx = x, ty = 0;
+      for (let i = 0; i < 4; i++) { box(tx, ty, z, 0.2 - i * 0.02, 0.86, 0.2 - i * 0.02, i % 2 ? "#A07E55" : "#8A6A45"); ty += 0.85; tx -= sd * 0.1; }
+      const top = P(tx, ty, z), len = 1.25 * s, sway = Math.sin(performance.now() / 700 + p.seed * 6) * 0.08;
+      ctx.save(); ctx.translate(top[0], top[1]); ctx.lineWidth = Math.max(1, 0.025 * s); ctx.strokeStyle = ink;
+      let n = 0;
+      for (const dir of [1, -1]) for (const el of [8, 32, 58]) {
+        ctx.save(); ctx.scale(dir, 1); ctx.rotate(-(el * Math.PI / 180) + sway * dir);
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(len * 0.5, -len * 0.28, len, len * 0.2);
+        ctx.quadraticCurveTo(len * 0.5, len * 0.02, 0, 0);
+        ctx.fillStyle = shade(n++ % 2 ? "#3E9A5C" : "#5CC27A", 1, fog); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+      ball(tx - 0.08, ty - 0.12, z - 0.12, 0.11, "#6B4426"); ball(tx + 0.1, ty - 0.14, z - 0.1, 0.1, "#7B4A2A");
+      break;
+    }
+    case "umbrella": {
+      quadZ(x - 0.32, x + 0.32, z - 0.9, z + 0.3, 0.003, shade(p.color, 1, fog));
+      quadZ(x - 0.32, x + 0.32, z - 0.6, z - 0.45, 0.004, shade("#FFFFFF", 1, fog));
+      box(x, 0, z, 0.05, 1.7, 0.05, "#FFFFFF");
+      const top = P(x, 1.72, z), rw = 0.85 * s, rh = 0.34 * s;
+      ctx.lineWidth = Math.max(1, 0.025 * s); ctx.strokeStyle = ink;
+      for (const [k, col] of [[1, p.color], [0.5, "#FFFFFF"], [0.15, p.color]]) {
+        ctx.beginPath(); ctx.ellipse(top[0], top[1] + rh * 0.5, rw * k, rh, 0, Math.PI, 0); ctx.closePath();
+        ctx.fillStyle = shade(col, 1, fog); ctx.fill(); if (k === 1) ctx.stroke();
+      }
+      break;
+    }
+    case "kiosk":
+      shadow(x, z, 1.6, 1.6);
+      box(x, 0, z, 1.3, 1.1, 1.3, "#C98F5A");
+      faceZ(x - 0.5, x + 0.5, 0.55, 1.0, z - 0.66, shade("#5A3520", 1, fog));
+      faceZ(x - 0.55, x + 0.55, 0.5, 0.58, z - 0.67, shade("#E3C27A", 1, fog));
+      box(x, 1.1, z, 1.75, 0.32, 1.75, "#E3C27A");
+      faceZ(x - 0.87, x + 0.87, 1.02, 1.12, z - 0.88, shade("#C9A75E", 1, fog));
+      if (fog < 0.5) faceText(x, 1.26, z - 0.88, "COCO GELADO", 0.17, 1.5, "#2E8B57");
+      break;
+    case "lifeguard":
+      shadow(x, z, 1.2, 1.2);
+      for (const [dx, dz] of [[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]]) box(x + dx, 0, z + dz, 0.08, 1.4, 0.08, "#FFFFFF");
+      box(x, 1.4, z, 1.0, 0.8, 1.0, "#FF4F5A");
+      faceZ(x - 0.5, x + 0.5, 1.7, 1.85, z - 0.51, shade("#FFFFFF", 1, fog));
+      box(x, 2.2, z, 1.15, 0.1, 1.15, "#FFFFFF");
+      box(x + 0.45, 2.3, z, 0.04, 0.8, 0.04, "#FFFFFF");
+      poly([P(x + 0.47, 3.08, z), P(x + 0.95, 2.95, z), P(x + 0.47, 2.82, z)], shade("#FFD23F", 1, fog));
+      break;
+    case "pylon": {
+      box(x, 0, z, 0.55, 11, 0.55, "#C9CCD8");
+      faceZ(x - 0.28, x + 0.28, 10.2, 10.6, z - 0.28, shade("#E8434E", 1, fog));
+      ctx.strokeStyle = shade("#E8E8F0", 1, fog); ctx.lineWidth = Math.max(1, 0.025 * s);
+      ctx.beginPath();
+      for (const k of [-16, -10, -5, 5, 10, 16]) {
+        if (z + k < CFG.camZ + 0.6) continue;
+        const a = P(x, 10.4 - Math.abs(k) * 0.05, z), b = P(sd * (CFG.lane + 1.45), 1.05, z + k);
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+      break;
+    }
+    case "bush":
+      ball(x - 0.25, 0.22, z - 0.1, 0.3, "#5DA548");
+      ball(x, 0.32, z, 0.42, "#4E8F3A");
+      ball(x + 0.3, 0.25, z + 0.1, 0.32, "#5DA548");
+      if (p.seed < 0.3) { ball(x - 0.1, 0.55, z - 0.3, 0.05, "#FFD23F"); ball(x + 0.15, 0.45, z - 0.35, 0.05, "#FFFFFF"); }
+      break;
+    case "fence":
+      for (const dz of [-1.5, 0, 1.5]) box(x, 0, z + dz, 0.09, 0.85, 0.09, "#A07A50");
+      box(x, 0.55, z, 0.05, 0.08, 3.0, "#B8915F");
+      box(x, 0.28, z, 0.05, 0.08, 3.0, "#B8915F");
+      break;
+    case "cow":
+      shadow(x, z, 0.8, 1.3);
+      for (const [dx, dz] of [[-0.2, -0.45], [0.2, -0.45], [-0.2, 0.45], [0.2, 0.45]]) box(x + dx, 0, z + dz, 0.12, 0.45, 0.12, "#E8E8F0");
+      box(x, 0.45, z, 0.62, 0.6, 1.2, "#FFFFFF");
+      ball(x - sd * 0.32, 0.8, z + 0.25, 0.14, PAL.ink); ball(x - sd * 0.32, 0.62, z - 0.25, 0.11, PAL.ink); ball(x + 0.1, 1.06, z + 0.1, 0.1, PAL.ink);
+      box(x, 0.7, z - 0.72, 0.42, 0.42, 0.3, "#FFFFFF");
+      faceZ(x - 0.15, x + 0.15, 0.72, 0.88, z - 0.875, shade("#FFB4C0", 1, fog));
+      ball(x - 0.1, 1.0, z - 0.88, 0.04, PAL.ink); ball(x + 0.1, 1.0, z - 0.88, 0.04, PAL.ink);
+      box(x - 0.22, 1.08, z - 0.75, 0.08, 0.12, 0.06, "#F4E1C1"); box(x + 0.22, 1.08, z - 0.75, 0.08, 0.12, 0.06, "#F4E1C1");
+      break;
+    case "billboard":
+      box(x - 0.9, 0, z, 0.12, 2.0, 0.12, "#7B4A2A"); box(x + 0.9, 0, z, 0.12, 2.0, 0.12, "#7B4A2A");
+      faceZ(x - 1.3, x + 1.3, 1.8, 3.1, z - 0.07, shade(PAL.ink, 1, fog));
+      faceZ(x - 1.22, x + 1.22, 1.88, 3.02, z - 0.08, shade("#FFF7E0", 1, fog));
+      if (fog < 0.6) faceText(x, 2.45, z - 0.09, p.text, 0.3, 2.3, "#E8434E");
       break;
   }
 }
@@ -1466,6 +1742,11 @@ function render() {
   const items = [];
   for (const b of decor) items.push({ z: b.z + b.len / 2, f: () => drawBuilding(b) });
   for (const p of props) items.push({ z: p.z + 0.3, f: () => drawProp(p) });
+  const k0 = Math.floor(G.dist / BIOME_CYCLE);
+  for (let k = k0; k <= k0 + 1; k++) for (const b of BIOMES) {
+    const z = k * BIOME_CYCLE + b.start - G.dist;
+    if (k * BIOME_CYCLE + b.start > 0 && z > CFG.camZ + 0.5 && z < CFG.farZ) items.push({ z, f: () => drawWelcome(z, b) });
+  }
   for (const o of obstacles) items.push({ z: o.z + o.type.len / 2, f: () => drawObstacle(o) });
   for (const c of coins) items.push({ z: c.z, f: () => drawCoin(c) });
   items.push({ z: busBackZ() + CFG.busLen, f: drawBus });
