@@ -208,6 +208,7 @@ const SKINS = [
   { id: "bolinha",  name: "Bolinha",          price: 150,  body: "#6EC6FF", dots: "#FFFFFF",   legs: "#4BA3E0", tie: "#FFD23F", hair: "#2B2D42", head: "hair" },
   { id: "exec",     name: "Executivo",        price: 300,  body: "#5C6378", shirt: "#FFFFFF",  legs: "#3F4555", tie: "#FF4F5A", hair: "#1E1E1E", head: "slick" },
   { id: "carnaval", name: "Carnaval",         price: 500,  body: "#3EE6A1", stripe: "#FFD23F", legs: "#2BB57E", tie: "#FF9F1C", hair: "#2B2D42", head: "hat" },
+  { id: "pescador", name: "Zé Pescador",     price: 700,  body: "#E9E2C8", vest: "#6B7F4A", vestDark: "#55663A", legs: "#4A6A8A", boots: "#2F5E3E", hair: "#4A2F1E", head: "fisher", hat: "#C9B27C", hatBand: "#8C7A4E", rod: true },
   { id: "dino",     name: "Dino",             price: 800,  body: "#7BD389", legs: "#5DB86C",   tie: "#FF4F5A", hair: "#4E9E5C", head: "dino" },
   { id: "astro",    name: "Astronauta",       price: 1200, body: "#F4F4F8", stripe: "#DADAE6", legs: "#C9C9D6", tie: "#FF4F5A", hair: "#B5E2FA", head: "helmet" },
   { id: "gold",     name: "Zé Dourado",       price: 2500, body: "#FFC300", stripe: "#FFE680", legs: "#D9A300", tie: "#FFFFFF", hair: "#FFC300", head: "hair" },
@@ -245,6 +246,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (a, bExcl) => Math.floor(rand(a, bExcl));
 const pick = (arr) => arr[randInt(0, arr.length)];
+const hash = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
 const laneX = (l) => (l === 0 ? -CFG.lane : CFG.lane);
 
 const rgbCache = {};
@@ -371,7 +373,7 @@ function vibrate(ms) {
 
 // ================= Canvas & projeção =================
 const cv = $("c"), ctx = cv.getContext("2d");
-let W = 0, H = 0, DPR = 1, F = 1, KX = 1, HOR = 0;
+let W = 0, H = 0, DPR = 1, F = 1, KX = 1, HOR = 0, skyline = [], vignette = null;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth; H = window.innerHeight;
@@ -381,6 +383,10 @@ function resize() {
   const dz0 = -CFG.camZ;
   F = (H * 0.78 - HOR) * dz0 / CFG.camY;
   KX = Math.min(1, (W * 0.3) / (CFG.lane * F / dz0));
+  skyline = [];
+  for (let x = -10; x < W + 10;) { const w = rand(12, 34); skyline.push([x, rand(0.025, 0.1) * H, w]); x += w; }
+  vignette = ctx.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.45, W / 2, H * 0.55, Math.max(W, H) * 0.85);
+  vignette.addColorStop(0, "rgba(20,20,40,0)"); vignette.addColorStop(1, "rgba(20,20,40,0.3)");
 }
 window.addEventListener("resize", resize);
 resize();
@@ -496,17 +502,26 @@ function addBreather() {
 }
 
 // ================= Cenário =================
+const SIGNS = ["PADARIA", "FARMÁCIA", "BAR DO ZÉ", "AÇAÍ", "PASTEL", "SALÃO", "MERCADINHO", "LOTÉRICA", "CHAVEIRO", "SORVETES"];
+const AWNINGS = ["#FF4F5A", "#3EE6A1", "#FF9F1C", "#6EC6FF", "#C3B1E1"];
+const TRIMS = ["#FFFFFF", "#F4E1C1", "#2B2D42"];
 function makeBuilding(side, z, len) {
-  return { side, z, len, w: rand(2.5, 4), h: rand(3, 9), color: pick(PAL.buildings), gap: rand(0.3, 1.2), seed: Math.random() * 1000 };
+  return { side, z, len, w: rand(2.5, 4), h: rand(3.4, 9), color: pick(PAL.buildings), gap: rand(0.3, 1.2), seed: Math.random() * 1000,
+    shop: Math.random() < 0.55, sign: pick(SIGNS), awning: pick(AWNINGS), trim: pick(TRIMS), tank: Math.random() < 0.4 };
 }
+const PROP_KINDS = ["tree", "tree", "lamp", "lamp", "hydrant", "bin"];
+const makeProp = (side, z) => ({ side, z, kind: pick(PROP_KINDS) });
+const props = [];
 function initDecor() {
-  decor.length = 0;
+  decor.length = 0; props.length = 0;
   for (const side of [-1, 1]) {
     let z = -8;
     while (z < CFG.farZ + 10) { const w = rand(2.5, 4.5); decor.push(makeBuilding(side, z + w / 2, w)); z += w + rand(0.3, 1.2); }
+    for (let pz = -6; pz < CFG.farZ + 10; pz += rand(5, 9)) props.push(makeProp(side, pz));
   }
 }
 initDecor();
+const clouds = Array.from({ length: 6 }, () => ({ x: Math.random() * 1.4 - 0.2, y: rand(0.1, 0.75), s: rand(0.6, 1.3), v: rand(0.004, 0.012) }));
 
 // ================= Ônibus: a provocação eterna =================
 function pickEscapeAt() {
@@ -726,48 +741,106 @@ function refreshMenu() {
   $("btnSound").textContent = save.muted ? "🔇" : "🔊";
 }
 
-function drawZe(c, u, sk, swing, wave, coffee) {
-  const R = (px, py, w, h, col) => { c.fillStyle = col; c.fillRect(px * u, -py * u - h * u, w * u, h * u); };
-  const circ = (x, y, r, col) => { c.fillStyle = col; c.beginPath(); c.arc(x * u, -y * u, r * u, 0, Math.PI * 2); c.fill(); };
-  // pernas e chinelos
-  R(-0.22 + swing * 0.08, 0, 0.16, 0.45, sk.legs); R(0.06 - swing * 0.08, 0, 0.16, 0.45, sk.legs);
-  R(-0.26 + swing * 0.1, 0, 0.22, 0.07, PAL.ink); R(0.04 - swing * 0.1, 0, 0.22, 0.07, PAL.ink);
+function drawZe(c, u, sk, swing, wave, held) {
+  const ink = "rgba(43,45,66,0.9)", lw = Math.max(1, 0.035 * u);
+  const line = () => { c.strokeStyle = ink; c.lineWidth = lw; c.lineJoin = "round"; };
+  line();
+  const R = (px, py, w, h, col, outline) => {
+    c.fillStyle = col; c.fillRect(px * u, -py * u - h * u, w * u, h * u);
+    if (outline) c.strokeRect(px * u, -py * u - h * u, w * u, h * u);
+  };
+  const circ = (x, y, r, col, outline) => {
+    c.fillStyle = col; c.beginPath(); c.arc(x * u, -y * u, r * u, 0, Math.PI * 2); c.fill();
+    if (outline) c.stroke();
+  };
+  const tri = (pts, col, outline) => {
+    c.fillStyle = col; c.beginPath(); c.moveTo(pts[0][0] * u, -pts[0][1] * u);
+    for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * u, -pts[i][1] * u);
+    c.closePath(); c.fill(); if (outline) c.stroke();
+  };
+  const t = performance.now() / 1000;
+
+  // pernas + chinelo ou galocha
+  R(-0.22 + swing * 0.08, 0, 0.16, 0.45, sk.legs, true); R(0.06 - swing * 0.08, 0, 0.16, 0.45, sk.legs, true);
+  if (sk.boots) { R(-0.24 + swing * 0.08, 0, 0.2, 0.2, sk.boots, true); R(0.04 - swing * 0.08, 0, 0.2, 0.2, sk.boots, true); }
+  else { R(-0.26 + swing * 0.1, 0, 0.22, 0.07, PAL.ink); R(0.04 - swing * 0.1, 0, 0.22, 0.07, PAL.ink); }
+
   // corpo
-  R(-0.33, 0.42, 0.66, 0.7, sk.body);
+  R(-0.33, 0.42, 0.66, 0.7, sk.body, true);
   if (sk.stripe) { c.fillStyle = sk.stripe; for (let i = 0; i < 4; i++) c.fillRect((-0.33 + i * 0.18) * u, -1.12 * u, 0.06 * u, 0.7 * u); }
   if (sk.dots) for (const [dx, dy] of [[-0.18, 0.6], [0.12, 0.72], [-0.05, 0.92], [0.2, 1.0], [-0.22, 0.98], [0.18, 0.5]]) circ(dx, dy, 0.045, sk.dots);
   if (sk.shirt) R(-0.12, 1.0, 0.24, 0.12, sk.shirt);
-  if (sk.head === "dino") for (const yy of [0.62, 0.82, 1.02]) {
-    c.fillStyle = sk.hair; c.beginPath(); c.moveTo(-0.07 * u, -yy * u); c.lineTo(0, -(yy + 0.14) * u); c.lineTo(0.07 * u, -yy * u); c.fill();
+  if (sk.vest) {
+    R(-0.35, 0.48, 0.7, 0.62, sk.vest, true);
+    R(-0.22, 0.56, 0.44, 0.26, sk.vestDark);            // bolsão das costas
+    R(-0.22, 0.79, 0.44, 0.03, "rgba(255,255,255,.35)");
+    R(-0.35, 1.04, 0.7, 0.06, sk.vestDark);              // gola
   }
+  if (sk.head === "dino") for (const yy of [0.62, 0.82, 1.02]) tri([[-0.07, yy], [0, yy + 0.14], [0.07, yy]], sk.hair, true);
+  // volume: sombra à esquerda, brilho à direita
+  R(-0.33, 0.42, 0.12, 0.7, "rgba(0,0,0,0.13)");
+  R(0.2, 0.72, 0.07, 0.34, "rgba(255,255,255,0.2)");
+
   // gravata torta por cima do ombro
-  c.save(); c.translate(0, -1.08 * u); c.rotate(0.35 + swing * 0.15);
-  c.fillStyle = sk.tie; c.beginPath(); c.moveTo(-0.06 * u, 0); c.lineTo(0.06 * u, 0); c.lineTo(0.1 * u, 0.42 * u); c.lineTo(0, 0.5 * u); c.lineTo(-0.1 * u, 0.42 * u); c.fill();
-  c.restore();
-  // braços (acenando pro busão ou segurando o café)
+  if (sk.tie) {
+    c.save(); c.translate(0, -1.08 * u); c.rotate(0.35 + swing * 0.15);
+    c.fillStyle = sk.tie; c.beginPath(); c.moveTo(-0.06 * u, 0); c.lineTo(0.06 * u, 0); c.lineTo(0.1 * u, 0.42 * u); c.lineTo(0, 0.5 * u); c.lineTo(-0.1 * u, 0.42 * u); c.closePath();
+    c.fill(); c.stroke();
+    c.restore();
+  }
+
+  // braços (acenando pro busão ou segurando café / vara)
+  const sleeve = sk.vest ? sk.body : sk.body;
+  let hand;
   if (wave) {
     const wv = Math.sin(performance.now() / 70) * 0.06;
-    R(0.3 + wv, 1.0, 0.13, 0.5, sk.body); circ(0.365 + wv, 1.56, 0.09, "#FFD9C2");
+    R(0.3 + wv, 1.0, 0.13, 0.5, sleeve, true); circ(0.365 + wv, 1.56, 0.09, "#FFD9C2", true);
+    hand = [0.365 + wv, 1.56];
   } else {
-    R(0.3, 0.75, 0.13, 0.35, sk.body);
-    if (coffee) { R(0.3, 1.05, 0.18, 0.22, "#FFFFFF"); R(0.3, 1.21, 0.18, 0.04, "#7B4A2A"); }
+    R(0.3, 0.75, 0.13, 0.35, sleeve, true);
+    circ(0.365, 0.76, 0.07, "#FFD9C2");
+    hand = [0.365, 0.9];
+    if (held && !sk.rod) { R(0.3, 1.05, 0.18, 0.22, "#FFFFFF", true); R(0.3, 1.21, 0.18, 0.04, "#7B4A2A"); }
   }
-  R(-0.43, 0.72 + swing * 0.05, 0.13, 0.35, sk.body);
+  R(-0.43, 0.72 + swing * 0.05, 0.13, 0.35, sleeve, true);
+
+  // vara de pescar com peixinho balançando
+  if (sk.rod && held) {
+    const [hx, hy] = hand, tx = hx + 0.75, ty = hy + 1.25 + Math.sin(t * 9) * 0.04;
+    c.strokeStyle = "#5A3A22"; c.lineWidth = Math.max(1.5, 0.05 * u);
+    c.beginPath(); c.moveTo(hx * u, -hy * u); c.lineTo(tx * u, -ty * u); c.stroke();
+    circ(hx + 0.1, hy + 0.15, 0.055, "#9A9AAA");
+    const ang = Math.sin(t * 6) * 0.35, fx = tx + Math.sin(ang) * 0.5, fy = ty - Math.cos(ang) * 0.5;
+    c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = Math.max(1, 0.014 * u);
+    c.beginPath(); c.moveTo(tx * u, -ty * u); c.lineTo(fx * u, -fy * u); c.stroke();
+    c.save(); c.translate(fx * u, -fy * u); c.rotate(ang);
+    line();
+    c.fillStyle = "#FF9F1C"; c.beginPath(); c.ellipse(0, 0.14 * u, 0.07 * u, 0.14 * u, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(-0.08 * u, 0.33 * u); c.lineTo(0.08 * u, 0.33 * u); c.lineTo(0, 0.25 * u); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = PAL.ink; c.beginPath(); c.arc(0.025 * u, 0.07 * u, 0.018 * u, 0, Math.PI * 2); c.fill();
+    c.restore();
+    line();
+  }
+
   // cabeça (vista de trás)
   const skinTone = "#FFD9C2", headCol = sk.head === "dino" ? sk.body : skinTone;
-  if (sk.head !== "helmet" && sk.head !== "dino") { circ(-0.36, 1.46, 0.08, skinTone); circ(0.36, 1.46, 0.08, skinTone); }
-  circ(0, 1.48, 0.36, headCol);
+  if (sk.head !== "helmet" && sk.head !== "dino") { circ(-0.36, 1.46, 0.08, skinTone, true); circ(0.36, 1.46, 0.08, skinTone, true); }
+  circ(0, 1.48, 0.36, headCol, true);
+  const hg = c.createRadialGradient(-0.1 * u, -1.6 * u, 0.05 * u, 0, -1.48 * u, 0.38 * u);
+  hg.addColorStop(0, "rgba(255,255,255,0.2)"); hg.addColorStop(1, "rgba(0,0,0,0.12)");
+  c.fillStyle = hg; c.beginPath(); c.arc(0, -1.48 * u, 0.36 * u, 0, Math.PI * 2); c.fill();
+
   c.fillStyle = sk.hair;
   switch (sk.head) {
     case "hair":
     case "hat":
       c.beginPath(); c.arc(0, -1.54 * u, 0.36 * u, Math.PI * 1.02, Math.PI * 1.98); c.fill();
-      if (sk.head === "hair") for (let i = -2; i <= 2; i++) {
-        c.beginPath(); c.moveTo(i * 0.12 * u - 0.06 * u, -1.8 * u); c.lineTo(i * 0.14 * u, -2.02 * u + Math.abs(i) * 0.04 * u); c.lineTo(i * 0.12 * u + 0.06 * u, -1.8 * u); c.fill();
+      if (sk.head === "hair") {
+        for (let i = -2; i <= 2; i++) tri([[i * 0.12 - 0.06, 1.8], [i * 0.14, 2.02 - Math.abs(i) * 0.04], [i * 0.12 + 0.06, 1.8]], sk.hair);
       } else {
-        c.fillStyle = "#FF4F5A"; c.beginPath(); c.moveTo(-0.22 * u, -1.8 * u); c.lineTo(0.22 * u, -1.8 * u); c.lineTo(0.02 * u, -2.35 * u); c.fill();
-        c.fillStyle = "#FFD23F"; c.fillRect(-0.15 * u, -2.0 * u, 0.3 * u, 0.06 * u);
-        circ(0.02, 2.37, 0.07, "#3EE6A1");
+        tri([[-0.22, 1.8], [0.22, 1.8], [0.02, 2.35]], "#FF4F5A", true);
+        R(-0.15, 1.94, 0.3, 0.06, "#FFD23F");
+        circ(0.02, 2.37, 0.07, "#3EE6A1", true);
       }
       break;
     case "slick":
@@ -775,14 +848,20 @@ function drawZe(c, u, sk, swing, wave, coffee) {
       c.fillRect(-0.37 * u, -1.52 * u, 0.74 * u, 0.1 * u);
       break;
     case "dino":
-      for (const [xx, yy, s] of [[0, 1.84, 0.12], [0, 1.66, 0.1]]) {
-        c.beginPath(); c.moveTo(-s * u, -yy * u); c.lineTo(0, -(yy + s * 1.6) * u); c.lineTo(s * u, -yy * u); c.fill();
-      }
+      tri([[-0.12, 1.84], [0, 2.03], [0.12, 1.84]], sk.hair, true);
+      tri([[-0.1, 1.66], [0, 1.82], [0.1, 1.66]], sk.hair, true);
       break;
     case "helmet":
-      circ(0, 1.5, 0.44, "#FFFFFF");
-      c.strokeStyle = "#C9C9D6"; c.lineWidth = Math.max(1, 0.05 * u); c.beginPath(); c.arc(0, -1.5 * u, 0.44 * u, 0, Math.PI * 2); c.stroke();
-      R(-0.015, 1.93, 0.03, 0.22, "#C9C9D6"); circ(0, 2.18, 0.06, "#FF4F5A");
+      circ(0, 1.5, 0.44, "#FFFFFF", true);
+      c.strokeStyle = "#C9C9D6"; c.beginPath(); c.arc(0, -1.5 * u, 0.36 * u, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); line();
+      R(-0.015, 1.93, 0.03, 0.22, "#C9C9D6"); circ(0, 2.18, 0.06, "#FF4F5A", true);
+      break;
+    case "fisher":
+      c.beginPath(); c.arc(0, -1.5 * u, 0.37 * u, Math.PI * 1.0, Math.PI * 2.0); c.fill();
+      c.fillStyle = sk.hat; c.beginPath(); c.ellipse(0, -1.72 * u, 0.5 * u, 0.11 * u, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+      tri([[-0.27, 1.72], [0.27, 1.72], [0.21, 2.0], [-0.21, 2.0]], sk.hat, true);
+      R(-0.255, 1.74, 0.51, 0.06, sk.hatBand);
+      circ(0.16, 1.87, 0.035, "#FF4F5A"); circ(0.16, 1.81, 0.028, "#FFD23F");
       break;
   }
 }
@@ -935,6 +1014,15 @@ function update(dt, realDt) {
     }
   }
 
+  for (const p of props) {
+    p.z -= ws * dt;
+    if (p.z < -8) {
+      let maxZ = -Infinity; for (const o of props) if (o.side === p.side) maxZ = Math.max(maxZ, o.z);
+      Object.assign(p, makeProp(p.side, maxZ + rand(5, 9)));
+    }
+  }
+  for (const c of clouds) { c.x += c.v * realDt * (playing ? 1.6 : 1); if (c.x > 1.3) { c.x = -0.3; c.y = rand(0.1, 0.75); } }
+
   if (player.dead) {
     player.vy -= 18 * dt; player.dy += player.vy * dt; player.dz += player.vz * dt; player.rot += player.vrot * dt;
     if (player.dy < 0 && player.vy < 0 && player.vrot !== 0) { player.dy = 0; player.vy *= -0.35; player.vz *= 0.6; player.vrot *= 0.6; }
@@ -952,95 +1040,315 @@ function update(dt, realDt) {
 }
 
 // ================= Render =================
+const ROAD_Y = -0.15; // asfalto um pouco abaixo da calçada: meio-fio com altura
+const NEAR = () => CFG.camZ + 0.5;
+
+function drawClouds() {
+  ctx.fillStyle = rgbStr(mixRgb(mixRgb([255, 255, 255], ENV.hor, 0.2), ENV.top, ENV.night * 0.55));
+  const k = W / 390;
+  for (const c of clouds) {
+    const x = c.x * W, y = c.y * HOR, r = 16 * c.s * k;
+    for (const [dx, dy, rr] of [[0, 0, 1], [1.1, -0.4, 1.3], [2.3, 0, 0.95], [1.2, 0.25, 1.1]]) {
+      ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, rr * r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawSkyline() {
+  ctx.fillStyle = rgbStr(mixRgb(ENV.hor, ENV.top, 0.35));
+  for (const [x, h, w] of skyline) ctx.fillRect(x, HOR - h, w - 2, h + 2);
+  if (ENV.night > 0.5) {
+    ctx.fillStyle = `rgba(255,227,138,${(ENV.night - 0.5) * 1.2})`;
+    for (const [x, h, w] of skyline) for (let yy = HOR - h + 5; yy < HOR - 3; yy += 7) if (hash(x * 0.37 + yy) > 0.6) ctx.fillRect(x + 3, yy, 2, 2);
+  }
+}
+
 function drawWorld() {
   const sky = ctx.createLinearGradient(0, 0, 0, HOR);
   sky.addColorStop(0, rgbStr(ENV.top)); sky.addColorStop(1, rgbStr(ENV.hor));
   ctx.fillStyle = sky; ctx.fillRect(-20, -20, W + 40, HOR + 21);
-  // sol / lua
   const r = Math.min(W, H) * 0.07;
-  ctx.beginPath(); ctx.arc(W * 0.8, HOR * 0.45, r, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.sun); ctx.fill();
   if (ENV.night > 0.5) {
-    ctx.beginPath(); ctx.arc(W * 0.8 + r * 0.45, HOR * 0.45 - r * 0.2, r * 0.85, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.top); ctx.fill();
     ctx.fillStyle = `rgba(255,255,255,${(ENV.night - 0.5) * 1.6})`;
-    for (let i = 0; i < 24; i++) { const sx = (i * 97.3) % W, sy = (i * 53.7) % (HOR * 0.85); ctx.fillRect(sx, sy, 2, 2); }
+    for (let i = 0; i < 30; i++) { const sx = (i * 97.3) % W, sy = (i * 53.7) % (HOR * 0.85); ctx.fillRect(sx, sy, 2, 2); }
+  }
+  ctx.beginPath(); ctx.arc(W * 0.8, HOR * 0.45, r * 1.5, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.sun, 0.25); ctx.fill();
+  ctx.beginPath(); ctx.arc(W * 0.8, HOR * 0.45, r, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.sun); ctx.fill();
+  if (ENV.night > 0.5) { ctx.beginPath(); ctx.arc(W * 0.8 + r * 0.45, HOR * 0.45 - r * 0.2, r * 0.85, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.top); ctx.fill(); }
+  drawClouds();
+  drawSkyline();
+
+  const near = NEAR(), far = CFG.farZ, L = CFG.lane, inner = L - 1.05, outer = L + 1.05, bx = L + 1.6, ry = ROAD_Y;
+  ctx.fillStyle = shade(PAL.asphalt, 1, 0.5); ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
+  quadZ(-60, 60, near, far, ry, shade(PAL.asphalt));
+
+  // remendos e manchas de óleo no asfalto (determinísticos pela distância)
+  const seg = 5;
+  for (let i = Math.floor((G.dist + near) / seg); i * seg - G.dist < far; i++) {
+    const h = hash(i), z = i * seg - G.dist + hash(i + 0.5) * seg, fog = fogAt(z);
+    if (z < near) continue;
+    if (h < 0.3) {
+      const l = 0.6 + hash(i + 0.7) * 1.4, w = 0.25 + hash(i + 0.9) * 0.35, x = (hash(i + 0.2) - 0.5) * (2 * inner - w);
+      quadZ(x - w / 2, x + w / 2, z, z + l, ry + 0.001, shade(PAL.asphalt, 0.84, fog));
+    } else if (h > 0.8) {
+      const p = P((hash(i + 0.3) - 0.5) * inner, ry, z), s = scaleAt(z) * KX;
+      ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.26 * s, Math.max(0.5, 0.06 * s), 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(25,25,45,${0.3 * (1 - fog)})`; ctx.fill();
+    }
+  }
+  // faixa central tracejada
+  const dstep = 5, doff = G.dist % dstep;
+  for (let z = -doff; z < far; z += dstep) { if (z + 2 < near) continue; quadZ(-0.05, 0.05, Math.max(z, near), z + 2, ry + 0.002, shade("#FFE38A", 0.95, fogAt(z))); }
+  // faixa de pedestre a cada 90m
+  const cw = 90, sw = (2 * inner) / 5;
+  for (let k = Math.ceil((G.dist + near - 3) / cw); k * cw - G.dist < far; k++) {
+    const z = k * cw - G.dist; if (z + 2.4 < near) continue;
+    const col = shade("#FFFFFF", 0.97, fogAt(z));
+    for (let j = 0; j < 5; j += 2) quadZ(-inner + j * sw, -inner + (j + 1) * sw, Math.max(z, near), z + 2.4, ry + 0.003, col);
+  }
+  // meio-fio: face vertical voltada para o asfalto
+  for (const s of [-1, 1]) { const xe = s * inner; poly([P(xe, ry, near), P(xe, 0, near), P(xe, 0, far), P(xe, ry, far)], shade("#B39C7E")); }
+
+  // calçadas
+  for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, near, far, 0, shade(PAL.cream));
+  drawSidewalkPattern();
+
+  // canteiros com florzinhas
+  for (const s of [-1, 1]) {
+    quadZ(s * outer, s * bx, near, far, 0.001, shade("#79C27D"));
+    quadZ(s * outer, s * (outer + 0.07), near, far, 0.002, shade("#5E9E62"));
+  }
+  const fseg = 1.7, flowers = ["#FF4F5A", "#FFD23F", "#FFFFFF", "#C3B1E1"];
+  for (let i = Math.floor((G.dist + near) / fseg); i * fseg - G.dist < 60; i++) {
+    const z = i * fseg - G.dist + hash(i + 0.1) * fseg; if (z < near) continue;
+    for (const s of [-1, 1]) {
+      const h = hash(i * 2 + s);
+      if (h < 0.45) ball(s * (outer + 0.12 + h * 0.8), 0.06, z, 0.05, flowers[(h * 40 | 0) % 4]);
+      else if (h > 0.7) ball(s * (outer + 0.15 + (h - 0.7) * 1.2), 0.04, z, 0.08, "#5E9E62");
+    }
   }
 
-  const near = CFG.camZ + 0.5, far = CFG.farZ, L = CFG.lane;
-  ctx.fillStyle = shade(PAL.asphalt, 1, 0.5); ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
-  quadZ(-60, 60, near, far, 0, shade(PAL.asphalt));
-  for (const s of [-1, 1]) {
-    quadZ(s * L - 1.05, s * L + 1.05, near, far, 0, shade(PAL.cream));
-    quadZ(s > 0 ? s * L - 1.05 : s * L + 0.95, s > 0 ? s * L - 0.95 : s * L + 1.05, near, far, 0, shade(PAL.curb));
-  }
-  const step = 2, off = G.dist % step;
-  for (let z = -off + step; z < far; z += step) {
-    if (z < near) continue;
-    const col = shade(PAL.curb, 0.95, fogAt(z));
-    for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, z, z + 0.08, 0.001, col);
-  }
-  const dstep = 5, doff = G.dist % dstep;
-  for (let z = -doff; z < far; z += dstep) { if (z + 2 < near) continue; quadZ(-0.06, 0.06, Math.max(z, near), z + 2, 0.002, shade("#FFFFFF", 0.95, fogAt(z))); }
   const fg = ctx.createLinearGradient(0, HOR, 0, HOR + H * 0.08);
   fg.addColorStop(0, rgbStr(ENV.hor)); fg.addColorStop(1, rgbStr(ENV.hor, 0));
   ctx.fillStyle = fg; ctx.fillRect(-20, HOR - 1, W + 40, H * 0.08);
 }
 
-function drawBuilding(b) {
-  const x = b.side * (CFG.lane + 1.6 + b.w / 2);
-  box(x, 0, b.z, b.w, b.h, b.len, b.color, { noTop: true });
-  const fx = x - b.side * b.w / 2, fog = fogAt(b.z);
-  if (b.z - b.len / 2 > CFG.camZ + 1 && fog < 0.8) {
-    const day = shade("#FFFFFF", 0.95, fog), lit = rgbStr(mixRgb([255, 227, 138], ENV.hor, fog));
-    let n = 0;
-    for (let y = 1.2; y < b.h - 0.6; y += 1.4) for (let k = 0; k < 2; k++) {
-      const z0 = b.z - b.len / 2 + 0.4 + k * (b.len - 0.8) / 2, z1 = z0 + (b.len - 0.8) / 2 - 0.4;
-      const isLit = ENV.night > 0.5 && Math.sin(b.seed + n++ * 12.9898) > -0.2;
-      poly([P(fx, y, z0), P(fx, y + 0.7, z0), P(fx, y + 0.7, z1), P(fx, y, z1)], isLit ? lit : day);
+function drawSidewalkPattern() {
+  const near = NEAR(), L = CFG.lane, maxZ = 72, chunk = 8;
+  // juntas das placas
+  const step = 1.5, off = G.dist % step;
+  for (let z = -off + step; z < maxZ; z += step) {
+    if (z < near) continue;
+    const col = shade(PAL.curb, 0.98, fogAt(z));
+    for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, z, z + 0.05, 0.001, col);
+  }
+  // ondas de pedra portuguesa (calçadão)
+  for (const s of [-1, 1]) for (const off2 of [-0.5, 0.5]) {
+    for (let z0 = near; z0 < maxZ; z0 += chunk) {
+      const a = [], b = [], fog = fogAt(z0 + chunk / 2);
+      for (let z = z0; z <= z0 + chunk + 0.01; z += 0.5) {
+        const x = s * L + off2 + 0.2 * Math.sin((z + G.dist) * 0.9);
+        a.push(P(x - 0.08, 0.002, z)); b.push(P(x + 0.08, 0.002, z));
+      }
+      poly(a.concat(b.reverse()), shade("#D7A274", 1, fog));
     }
+  }
+  // pedra do meio-fio
+  for (const s of [-1, 1]) quadZ(s * (L - 1.05), s * (L - 0.92), near, CFG.farZ, 0.003, shade("#E8D3AE"));
+}
+
+function wallSign(fx, side, y0, y1, za, zb, text, col, fog) {
+  const face = (ya, yb, z0, z1, c) => poly([P(fx, ya, z0), P(fx, yb, z0), P(fx, yb, z1), P(fx, ya, z1)], c);
+  face(y0 - 0.04, y1 + 0.04, za - 0.04, zb + 0.04, shade("#FFFFFF", 0.95, fog));
+  face(y0, y1, za, zb, shade(col, 1, fog));
+  // texto projetado no plano da parede (afim, boa aproximação para uma placa curta)
+  const zs = side > 0 ? zb : za, ze = side > 0 ? za : zb, len = Math.abs(zb - za), hgt = y1 - y0;
+  const p0 = P(fx, y1, zs), pu = P(fx, y1, ze), pv = P(fx, y0, zs);
+  if (Math.hypot(pu[0] - p0[0], pu[1] - p0[1]) < 34 || fog > 0.5) return;
+  ctx.save();
+  ctx.transform((pu[0] - p0[0]) / len / 100, (pu[1] - p0[1]) / len / 100, (pv[0] - p0[0]) / hgt / 100, (pv[1] - p0[1]) / hgt / 100, p0[0], p0[1]);
+  ctx.font = `900 ${Math.min(hgt * 70, len * 100 / (text.length * 0.62))}px sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#FFFFFF"; ctx.fillText(text, len * 50, hgt * 52);
+  ctx.restore();
+}
+
+function drawBuilding(b) {
+  const x = b.side * (CFG.lane + 1.6 + b.w / 2), fog = fogAt(b.z);
+  box(x, 0, b.z, b.w, b.h, b.len, b.color, { noTop: true });
+  const z0 = b.z - b.len / 2, z1 = b.z + b.len / 2;
+  if (fog > 0.85 || z1 < CFG.camZ + 0.5) return;
+  const fx = x - b.side * b.w / 2;
+  const wall = (y0, y1, za, zb, c) => poly([P(fx, y0, za), P(fx, y1, za), P(fx, y1, zb), P(fx, y0, zb)], c);
+  const lit = rgbStr(mixRgb([255, 227, 138], ENV.hor, fog)), night = ENV.night > 0.5;
+
+  wall(0, 0.18, z0, z1, shade(b.color, 0.5, fog));                          // rodapé
+  for (let y = 1.6; y < b.h - 0.3; y += 1.4) wall(y - 0.07, y, z0, z1, shade(b.color, 0.62, fog)); // frisos
+  wall(b.h - 0.24, b.h, z0, z1, shade(b.color, 0.55, fog));                 // cornija
+
+  // janelas com moldura, peitoril e reflexo
+  const cols = Math.max(1, Math.floor(b.len / 1.3)), cw = b.len / cols, frame = shade(b.trim, 0.95, fog);
+  let n = 0;
+  for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < cols; k++) {
+    const za = z0 + k * cw + cw * 0.22, zb = za + cw * 0.56, on = night && Math.sin(b.seed + n++ * 12.9898) > -0.2;
+    wall(y - 0.07, y + 0.77, za - 0.06, zb + 0.06, frame);
+    wall(y, y + 0.7, za, zb, on ? lit : shade("#7FB8D8", 1, fog));
+    if (!on && fog < 0.5) wall(y + 0.38, y + 0.7, za, za + (zb - za) * 0.35, shade("#D4EEF9", 1, fog));
+    wall(y - 0.13, y - 0.05, za - 0.1, zb + 0.1, shade(b.trim, 0.8, fog));
+  }
+
+  if (b.shop) {
+    wall(0.2, 1.15, z0 + 0.25, z1 - 0.25, night ? rgbStr(mixRgb([255, 233, 168], ENV.hor, fog)) : shade("#3B5070", 1, fog));
+    if (!night && fog < 0.5) wall(0.75, 1.15, z0 + 0.3, z0 + 0.3 + (b.len - 0.6) * 0.3, shade("#5E7898", 1, fog));
+    // toldo listrado
+    const ax = fx - b.side * 0.55, segs = 6, sl = (b.len - 0.3) / segs;
+    for (let i = 0; i < segs; i++) {
+      const za = z0 + 0.15 + i * sl, zb = za + sl;
+      poly([P(fx, 1.45, za), P(fx, 1.45, zb), P(ax, 1.12, zb), P(ax, 1.12, za)], shade(i % 2 ? "#FFFFFF" : b.awning, 1, fog));
+    }
+    poly([P(ax, 1.12, z0 + 0.15), P(ax, 1.12, z1 - 0.15), P(ax, 0.97, z1 - 0.15), P(ax, 0.97, z0 + 0.15)], shade(b.awning, 0.8, fog));
+    wallSign(fx, b.side, 1.58, 1.98, z0 + 0.3, z1 - 0.3, b.sign, b.awning, fog);
+  } else {
+    wall(0.18, 1.3, b.z - 0.38, b.z + 0.38, frame);
+    wall(0.18, 1.22, b.z - 0.32, b.z + 0.32, shade("#7B4A2A", 1, fog));
+    wall(0.18, 1.22, b.z - 0.015, b.z + 0.015, shade("#5A3520", 1, fog));
+  }
+
+  // fachada frontal (lado que encara a câmera)
+  const xl = x - b.w / 2, xr = x + b.w / 2;
+  for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < 2; k++) {
+    const xa = lerp(xl, xr, 0.15 + k * 0.45), xb = xa + b.w * 0.28;
+    faceZ(xa, xb, y, y + 0.7, z0 - 0.01, night && hash(b.seed + y + k) > 0.4 ? lit : shade("#7FB8D8", 0.9, fog));
+  }
+  // caixa d'água azul no telhado
+  if (b.tank) {
+    const tx = fx + b.side * 0.75;
+    box(tx, b.h, z0 + 0.6, 0.9, 0.75, 0.9, "#3E7CB1", { noTop: true });
+    faceZ(tx - 0.47, tx + 0.47, b.h + 0.75, b.h + 0.85, z0 + 0.14, shade("#2F5F8A", 1, fog));
+  }
+}
+
+function drawProp(p) {
+  if (p.z > CFG.farZ - 5 || p.z < CFG.camZ + 0.5) return;
+  const x = p.side * (CFG.lane + 1.33), z = p.z, fog = fogAt(z);
+  switch (p.kind) {
+    case "tree":
+      shadow(x, z, 1.1, 1.1);
+      box(x, 0, z, 0.55, 0.18, 0.55, "#B98B5E");
+      box(x, 0.18, z, 0.13, 1.25, 0.13, "#7B4A2A");
+      ball(x + p.side * 0.15, 1.55, z + 0.15, 0.5, "#3E9A5C");
+      ball(x, 1.8, z, 0.62, "#4CAF6A");
+      ball(x - p.side * 0.25, 1.62, z - 0.2, 0.42, "#5CC27A");
+      ball(x - p.side * 0.12, 1.98, z - 0.12, 0.25, "#7ED69A");
+      break;
+    case "lamp": {
+      const hx = x - p.side * 0.75;
+      box(x, 0, z, 0.1, 3.3, 0.1, "#4A4E6A");
+      box(x - p.side * 0.38, 3.22, z, 0.76, 0.07, 0.07, "#4A4E6A");
+      box(hx, 3.06, z, 0.32, 0.16, 0.24, "#4A4E6A");
+      ball(hx, 3.03, z - 0.05, 0.09, ENV.night > 0.4 ? "#FFF2B0" : "#E8E8F0");
+      if (ENV.night > 0.3 && fog < 0.9) {
+        const a = (ENV.night - 0.3) * 1.4 * (1 - fog);
+        const bp = P(hx, 3.0, z), s = scaleAt(z) * KX;
+        ctx.save(); ctx.globalCompositeOperation = "lighter";
+        let g = ctx.createRadialGradient(bp[0], bp[1], 0, bp[0], bp[1], 0.9 * s);
+        g.addColorStop(0, `rgba(255,220,130,${0.55 * a})`); g.addColorStop(1, "rgba(255,220,130,0)");
+        ctx.fillStyle = g; ctx.fillRect(bp[0] - s, bp[1] - s, 2 * s, 2 * s);
+        const gp = P(hx, 0, z), ry = Math.max(2, Math.abs(P(hx, 0, z - 1.2)[1] - P(hx, 0, z + 1.2)[1]) / 2), rx = 1.4 * s;
+        ctx.translate(gp[0], gp[1]); ctx.scale(1, ry / rx);
+        g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        g.addColorStop(0, `rgba(255,214,120,${0.32 * a})`); g.addColorStop(1, "rgba(255,214,120,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      break;
+    }
+    case "hydrant":
+      shadow(x, z, 0.3, 0.3);
+      box(x, 0, z, 0.24, 0.5, 0.24, "#E8434E");
+      box(x, 0.28, z, 0.38, 0.08, 0.08, "#E8434E");
+      ball(x, 0.52, z, 0.12, "#E8434E");
+      break;
+    case "bin":
+      box(x, 0, z, 0.06, 0.45, 0.06, "#4A4E6A");
+      box(x, 0.35, z, 0.34, 0.5, 0.34, "#FF9F1C");
+      faceZ(x - 0.12, x + 0.12, 0.72, 0.78, z - 0.175, shade("#2B2D42", 1, fog));
+      break;
   }
 }
 
 function drawObstacle(o) {
-  const t = o.type, x = o.x, z = o.z, fog = fogAt(z);
+  const t = o.type, x = o.x, z = o.z, fog = fogAt(z), sx = Math.sign(x) || 1;
   if (z - t.len / 2 > CFG.farZ) return;
+  const f = (x0, x1, y0, y1, zz, c, k) => faceZ(x0, x1, y0, y1, zz, shade(c, k || 1, fog));
   switch (t.id) {
     case "hole": {
-      quadZ(x - t.w / 2, x + t.w / 2, z - t.len / 2, z + t.len / 2, 0.003, shade("#1d1e30", 1, fog));
-      quadZ(x - t.w / 2, x + t.w / 2, z - t.len / 2, z - t.len / 2 + 0.12, 0.004, shade(PAL.danger, 1, fog));
-      const lid = P(x + t.w * 0.75 * Math.sign(x), 0.01, z);
-      ctx.beginPath(); ctx.ellipse(lid[0], lid[1], 0.35 * scaleAt(z) * KX, 0.12 * scaleAt(z), 0, 0, Math.PI * 2);
+      const z0 = z - t.len / 2, z1 = z + t.len / 2, xl = x - t.w / 2, xr = x + t.w / 2;
+      quadZ(xl - 0.06, xr + 0.06, z0 - 0.06, z1 + 0.06, 0.002, shade("#8d8fb3", 0.9, fog));
+      quadZ(xl, xr, z0, z1, 0.003, shade("#141526", 1, fog));
+      f(xl + 0.02, xr - 0.02, -0.4, 0.003, z1, "#34365A");
+      quadZ(xl, xr, z0, z0 + 0.1, 0.004, shade(PAL.danger, 1, fog));
+      // tampa jogada ao lado e cone de aviso
+      const lid = P(x + sx * 0.78, 0.01, z + 0.7), sc = scaleAt(z + 0.7) * KX;
+      ctx.beginPath(); ctx.ellipse(lid[0], lid[1], 0.33 * sc, Math.max(1, 0.1 * sc), 0, 0, Math.PI * 2);
       ctx.fillStyle = shade("#8d8fb3", 1, fog); ctx.fill();
+      const cx = x + sx * 0.82, cz = z - 0.3;
+      box(cx, 0, cz, 0.34, 0.05, 0.34, PAL.ink);
+      poly([P(cx - 0.14, 0.05, cz), P(cx + 0.14, 0.05, cz), P(cx + 0.03, 0.72, cz), P(cx - 0.03, 0.72, cz)], shade("#FF7A1C", 1, fog));
+      poly([P(cx - 0.1, 0.28, cz - 0.001), P(cx + 0.1, 0.28, cz - 0.001), P(cx + 0.08, 0.4, cz - 0.001), P(cx - 0.08, 0.4, cz - 0.001)], shade("#FFFFFF", 1, fog));
       break;
     }
     case "vovo": {
       shadow(x, z, 1, 1);
-      box(x + 0.25, 0, z - 0.1, 0.55, 0.75, 0.6, PAL.danger);
-      box(x - 0.2, 0, z + 0.25, 0.5, 1.1, 0.4, "#C3B1E1");
-      ball(x - 0.2, 1.3, z + 0.25, 0.24, "#FFD9C2");
-      ball(x - 0.2, 1.48, z + 0.3, 0.17, "#E8E8F0");
+      const cx = x + 0.25, cz = z - 0.1;
+      ball(cx - 0.2, 0.1, cz - 0.2, 0.1, PAL.ink); ball(cx + 0.2, 0.1, cz - 0.2, 0.1, PAL.ink);
+      box(cx, 0.12, cz, 0.55, 0.62, 0.55, PAL.danger);
+      f(cx - 0.27, cx + 0.27, 0.32, 0.36, cz - 0.28, "#B8323C"); f(cx - 0.27, cx + 0.27, 0.52, 0.56, cz - 0.28, "#B8323C");
+      ball(cx - 0.12, 0.8, cz, 0.14, "#5CC27A"); ball(cx + 0.12, 0.8, cz + 0.06, 0.11, "#FF9F1C"); ball(cx, 0.85, cz - 0.12, 0.09, "#E8434E");
+      box(cx, 0.7, cz + 0.3, 0.5, 0.5, 0.05, "#4A4E6A");
+      const vx = x - 0.2, vz = z + 0.25;
+      box(vx, 0, vz, 0.5, 1.1, 0.4, "#C3B1E1");
+      for (const [dx, dy] of [[-0.12, 0.35], [0.1, 0.55], [-0.06, 0.8], [0.12, 0.95]]) ball(vx + dx, dy, vz - 0.21, 0.035, "#FFFFFF");
+      ball(vx, 1.3, vz, 0.24, "#FFD9C2");
+      ball(vx, 1.5, vz + 0.08, 0.17, "#E8E8F0");
+      ball(vx - 0.08, 1.33, vz - 0.22, 0.06, "#FFFFFF"); ball(vx + 0.08, 1.33, vz - 0.22, 0.06, "#FFFFFF");
+      ball(vx - 0.08, 1.33, vz - 0.24, 0.025, PAL.ink); ball(vx + 0.08, 1.33, vz - 0.24, 0.025, PAL.ink);
+      ball(vx, 1.22, vz - 0.23, 0.03, "#E8434E");
+      box(vx - 0.32, 0, vz - 0.1, 0.05, 0.95, 0.05, "#7B4A2A");
       break;
     }
     case "dog": {
       shadow(x, z, 1, 1.5);
+      for (const [dx, dz] of [[-0.15, -0.4], [0.15, -0.4], [-0.15, 0.4], [0.15, 0.4]]) box(x + dx, 0, z + dz, 0.1, 0.18, 0.1, "#7B2E35");
       box(x, 0.15, z, 0.45, 0.35, 1.2, PAL.danger);
-      ball(x, 0.55, z - 0.65, 0.2, PAL.danger, 1.05);
-      ball(x - 0.15, 0.55, z - 0.55, 0.09, "#7B2E35");
-      ball(x + 0.15, 0.55, z - 0.55, 0.09, "#7B2E35");
-      box(x, 0, z - 0.35, 0.4, 0.15, 0.12, "#7B2E35"); box(x, 0, z + 0.4, 0.4, 0.15, 0.12, "#7B2E35");
+      box(x + Math.sin(performance.now() / 90) * 0.06, 0.42, z + 0.62, 0.06, 0.25, 0.06, PAL.danger);
+      box(x, 0.4, z - 0.52, 0.48, 0.08, 0.1, "#FFD23F");
+      ball(x - 0.2, 0.62, z - 0.62, 0.11, "#7B2E35"); ball(x + 0.2, 0.62, z - 0.62, 0.11, "#7B2E35");
+      ball(x, 0.6, z - 0.68, 0.22, PAL.danger, 1.05);
+      ball(x - 0.08, 0.66, z - 0.88, 0.045, "#FFFFFF"); ball(x + 0.08, 0.66, z - 0.88, 0.045, "#FFFFFF");
+      ball(x - 0.08, 0.66, z - 0.9, 0.022, PAL.ink); ball(x + 0.08, 0.66, z - 0.9, 0.022, PAL.ink);
+      ball(x, 0.56, z - 0.9, 0.045, PAL.ink);
       break;
     }
     case "boxes": {
       shadow(x, z, 1.2, 1);
-      box(x, 0, z, 1.1, 0.65, 0.9, "#E89B5A"); box(x - 0.1, 0.65, z, 0.9, 0.6, 0.8, "#D8864A");
-      box(x + 0.05, 1.25, z, 0.7, 0.55, 0.7, PAL.danger);
+      box(x, 0, z, 1.1, 0.65, 0.9, "#E89B5A"); f(x - 0.05, x + 0.05, 0, 0.65, z - 0.451, "#F6D6A2");
+      box(x - 0.1, 0.65, z, 0.9, 0.6, 0.8, "#D8864A"); f(x - 0.15, x - 0.05, 0.65, 1.25, z - 0.401, "#F6D6A2");
+      f(x - 0.45, x - 0.2, 0.85, 1.05, z - 0.402, "#FFFFFF");
+      box(x + 0.05, 1.25, z, 0.7, 0.55, 0.7, PAL.danger); f(x, x + 0.1, 1.25, 1.8, z - 0.351, "#FFC2C6");
       break;
     }
     case "scooter": {
       shadow(x, z, 0.7, 1);
-      box(x, 0.05, z, 0.3, 0.12, 0.9, PAL.ink);
-      box(x, 0.17, z - 0.4, 0.08, 1.0, 0.08, PAL.ink);
-      box(x, 0.17, z + 0.05, 0.5, 0.9, 0.35, PAL.danger);
-      ball(x, 1.35, z + 0.05, 0.22, PAL.player, 0.9);
+      ball(x, 0.09, z - 0.4, 0.09, PAL.ink); ball(x, 0.09, z + 0.4, 0.09, PAL.ink);
+      box(x, 0.06, z, 0.28, 0.08, 0.85, PAL.ink);
+      box(x, 0.14, z - 0.4, 0.07, 1.0, 0.07, PAL.ink);
+      box(x, 1.12, z - 0.4, 0.5, 0.05, 0.05, PAL.ink);
+      box(x, 0.14, z + 0.05, 0.48, 0.9, 0.34, PAL.danger);
+      ball(x, 1.35, z + 0.05, 0.21, "#FFD9C2");
+      ball(x - 0.07, 1.36, z - 0.15, 0.035, PAL.ink); ball(x + 0.07, 1.36, z - 0.15, 0.035, PAL.ink);
+      ball(x, 1.45, z + 0.08, 0.2, "#2B2D42");
+      ball(x, 0.98, z - 0.45, 0.06, ENV.night > 0.4 ? "#FFF6B0" : "#FFFFFF");
       if (z > 8 && (performance.now() / 150 | 0) % 2 === 0) {
         const p = P(x, 2.4, z), s = scaleAt(z) * KX;
         ctx.font = `900 ${Math.max(14, s * 0.9)}px sans-serif`; ctx.textAlign = "center";
@@ -1058,35 +1366,40 @@ function drawCoin(c) {
   shadow(c.x, c.z, 0.4, 0.4);
   ctx.beginPath(); ctx.ellipse(p[0], p[1], w, 0.3 * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = shade("#1fae74", 1, fogAt(c.z)); ctx.fill();
+  ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = "rgba(43,45,66,.8)"; ctx.stroke();
   ctx.beginPath(); ctx.ellipse(p[0], p[1], w * 0.72, 0.22 * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = shade(PAL.reward, 1.1, fogAt(c.z)); ctx.fill();
+  if (w > 6) { ctx.font = `900 ${0.26 * s}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#1fae74"; ctx.save(); ctx.translate(p[0], p[1]); ctx.scale(w / (0.3 * s), 1); ctx.fillText("V", 0, 0); ctx.restore(); ctx.textBaseline = "alphabetic"; }
 }
 
 function drawBus() {
-  const z0 = busBackZ(), z = z0 + CFG.busLen / 2, w = CFG.busW, fog = fogAt(z0);
+  const z0 = busBackZ(), z = z0 + CFG.busLen / 2, w = CFG.busW, fog = fogAt(z0), by = ROAD_Y;
   shadow(0, z, w * 1.1, CFG.busLen);
-  box(0, 0.35, z, w, 2.4, CFG.busLen, PAL.bus);
-  const zf = z0 - 0.01, hw = w / 2;
-  faceZ(-hw + 0.12, hw - 0.12, 1.55, 2.5, zf, shade("#B5E2FA", 1, fog));
-  faceZ(-hw + 0.12, hw - 0.12, 2.3, 2.5, zf - 0.005, shade(PAL.ink, 1, fog));
-  const brake = BUS.braking ? "#FF2030" : "#A0303A";
-  faceZ(-hw + 0.05, -hw + 0.35, 0.6, 0.85, zf, BUS.braking ? brake : shade(brake, 1, fog));
-  faceZ(hw - 0.35, hw - 0.05, 0.6, 0.85, zf, BUS.braking ? brake : shade(brake, 1, fog));
+  box(0, by + 0.35, z, w, 2.4, CFG.busLen, PAL.bus);
+  const zf = z0 - 0.01, hw = w / 2, f = (x0, x1, y0, y1, c, zz) => faceZ(x0, x1, by + y0, by + y1, zz || zf, c);
+  f(-hw, hw, 0.35, 0.6, shade("#E08A10", 1, fog));
+  f(-hw + 0.12, hw - 0.12, 1.5, 2.5, shade("#B5E2FA", 1, fog));
+  f(-hw + 0.2, -hw + 0.6, 1.7, 2.4, shade("#D4EEF9", 1, fog), zf - 0.004);
+  f(-hw + 0.12, hw - 0.12, 2.3, 2.5, shade(PAL.ink, 1, fog), zf - 0.005);
+  f(-0.25, 0.25, 0.75, 0.95, shade("#FFFFFF", 1, fog), zf - 0.004);
+  f(-hw - 0.02, hw + 0.02, 0.28, 0.4, shade("#4A4E6A", 1, fog), zf - 0.006);
+  const brake = BUS.braking ? "#FF2030" : shade("#A0303A", 1, fog);
+  f(-hw + 0.05, -hw + 0.35, 0.6, 0.85, brake, zf - 0.004); f(hw - 0.35, hw - 0.05, 0.6, 0.85, brake, zf - 0.004);
   if (BUS.braking) {
     for (const bx of [-hw + 0.2, hw - 0.2]) {
-      const p = P(bx, 0.72, zf), s = scaleAt(zf) * KX;
+      const p = P(bx, by + 0.72, zf), s = scaleAt(zf) * KX;
       const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], 0.6 * s);
       g.addColorStop(0, "rgba(255,40,50,.55)"); g.addColorStop(1, "rgba(255,40,50,0)");
       ctx.fillStyle = g; ctx.fillRect(p[0] - 0.6 * s, p[1] - 0.6 * s, 1.2 * s, 1.2 * s);
     }
   }
-  // placa de linha
-  const pl = P(0, 2.4, zf), s = scaleAt(zf) * KX;
+  const pl = P(0, by + 2.4, zf), s = scaleAt(zf) * KX;
   if (s > 18) {
     ctx.font = `900 ${0.16 * s}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillStyle = "#FFB347"; ctx.fillText("171 · CENTRO", pl[0], pl[1]); ctx.textBaseline = "alphabetic";
   }
-  ball(-hw + 0.25, 0.35, z0 + 0.9, 0.35, PAL.ink); ball(hw - 0.25, 0.35, z0 + 0.9, 0.35, PAL.ink);
+  ball(-hw + 0.25, by + 0.35, z0 + 0.9, 0.35, PAL.ink); ball(hw - 0.25, by + 0.35, z0 + 0.9, 0.35, PAL.ink);
 }
 
 function drawPlayer() {
@@ -1136,6 +1449,7 @@ function render() {
   drawWorld();
   const items = [];
   for (const b of decor) items.push({ z: b.z + b.len / 2, f: () => drawBuilding(b) });
+  for (const p of props) items.push({ z: p.z + 0.3, f: () => drawProp(p) });
   for (const o of obstacles) items.push({ z: o.z + o.type.len / 2, f: () => drawObstacle(o) });
   for (const c of coins) items.push({ z: c.z, f: () => drawCoin(c) });
   items.push({ z: busBackZ() + CFG.busLen, f: drawBus });
@@ -1144,6 +1458,7 @@ function render() {
   for (const it of items) it.f();
   drawParticles();
   drawSpeedLines();
+  ctx.fillStyle = vignette; ctx.fillRect(-20, -20, W + 40, H + 40);
   ctx.restore();
 
   if (G.state !== "menu") {
