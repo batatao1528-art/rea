@@ -530,6 +530,7 @@ let BIOME_CYCLE = 0;
 for (const b of BIOMES) { b.start = BIOME_CYCLE; BIOME_CYCLE += b.len; }
 const cyclePos = (wd) => ((wd % BIOME_CYCLE) + BIOME_CYCLE) % BIOME_CYCLE;
 function biomeAt(wd) {
+  if (wd < 0) return BIOMES[0];
   const t = cyclePos(wd);
   for (let i = BIOMES.length - 1; i >= 0; i--) if (t >= BIOMES[i].start) return BIOMES[i];
   return BIOMES[0];
@@ -539,7 +540,8 @@ function biomeSegments(near, far) {
   const segs = [];
   let z = near;
   while (z < far - 0.01) {
-    const b = biomeAt(G.dist + z), end = Math.min(far, Math.max(z + 0.01, z + (b.start + b.len - cyclePos(G.dist + z))));
+    const wd = G.dist + z, b = biomeAt(wd);
+    const end = Math.min(far, Math.max(z + 0.01, wd < 0 ? z - wd : z + (b.start + b.len - cyclePos(wd))));
     segs.push({ z0: z, z1: end, b });
     z = end;
   }
@@ -1225,6 +1227,20 @@ function drawGround(sg, far) {
           addQuadZ(s * (outer + 3 + h * 20), s * (outer + 4.5 + h * 20), z, z + 0.4, -6.99);
         }
         ctx.fillStyle = shade("#6CB4D6", 1, 0.2); ctx.fill();
+        for (const pr of props) if (pr.kind === "pylon" && pr.side === s && pr.z >= Math.max(z0, 4) && pr.z < sg.z1)
+          box(s * (CFG.lane + 1.33 + pr.xo), -7, pr.z, 0.6, 7, 0.6, "#AEB1C0");
+        const xa = s * (outer + 0.45), xb = s * 90;
+        // margem que desce da praia até a água, no começo da ponte
+        if (cyclePos(G.dist + z0) - BIOMES[2].start < 0.5) {
+          const ze = Math.min(sg.z1, z0 + 22);
+          poly([P(xa, 0, z0), P(xb, 0, z0), P(xb, -7, ze), P(xa, -7, ze)], shade("#D9BE85", 1, fogAt(z0)));
+        }
+        // margem que sobe da água até a estrada, no fim da ponte (rampa, não paredão)
+        if (sg.z1 < far - 0.01) {
+          const zb = Math.max(z0, sg.z1 - 22), fz = fogAt(sg.z1);
+          poly([P(xa, -7, zb), P(xb, -7, zb), P(xb, 0, sg.z1), P(xa, 0, sg.z1)], shade("#7DB25E", 1, fz));
+          poly([P(xa, -7, zb), P(xb, -7, zb), P(xb, -5.4, zb + 5), P(xa, -5.4, zb + 5)], shade("#D9BE85", 1, fz));
+        }
         fogQuad(s * outer, s * (outer + 0.45), z0, sg.z1, 0.001, "#B9BCC8");
         const rx = s * (outer + 0.4);
         poly([P(rx, 0.92, z0), P(rx, 1.05, z0), P(rx, 1.05, sg.z1), P(rx, 0.92, sg.z1)], shade("#E8434E"));
@@ -1235,10 +1251,6 @@ function drawGround(sg, far) {
           if (z > CFG.camZ + 0.5) addPts([P(rx - 0.05, 0, z), P(rx + 0.05, 0, z), P(rx + 0.05, 1.05, z), P(rx - 0.05, 1.05, z)]);
         }
         ctx.fillStyle = shade("#C9CCD8", 0.92, 0.1); ctx.fill();
-        if (sg.z1 < far - 0.01) {
-          faceZ(s * (outer + 0.45), s * 90, -7, 0, sg.z1, shade("#8B7B5E", 1, fogAt(sg.z1)));
-          faceZ(s * (outer + 0.45), s * 90, -0.6, 0, sg.z1 - 0.01, shade("#6E9E58", 1, fogAt(sg.z1)));
-        }
       }
       break;
     case "road":
@@ -1649,7 +1661,7 @@ function drawProp(p) {
       break;
     case "pylon": {
       if (z < 4) return; // colada na câmera vira um borrão gigante
-      box(x, -7, z, 0.6, 18, 0.6, "#C9CCD8");
+      box(x, 0, z, 0.6, 11, 0.6, "#C9CCD8");
       faceZ(x - 0.28, x + 0.28, 10.2, 10.6, z - 0.28, shade("#E8434E", 1, fog));
       ctx.strokeStyle = shade("#E8E8F0", 1, fog); ctx.lineWidth = Math.max(1, 0.025 * s);
       ctx.beginPath();

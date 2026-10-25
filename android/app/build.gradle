@@ -8,8 +8,8 @@ android {
         applicationId "com.atrasado.game"
         minSdk 24
         targetSdk 34
-        versionCode 7
-        versionName "1.5"
+        versionCode 8
+        versionName "1.6"
     }
 
     // O jogo é o mesmo HTML5 de web/index.html, empacotado como asset (roda offline).
