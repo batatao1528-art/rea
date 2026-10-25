@@ -298,6 +298,8 @@ const save = Object.assign({
   muted: false, tutorialDone: false, quality: 2, runs: 0, missions: null, mlevels: {}, places: ["city"],
 }, store.get(SAVE_KEY, {}));
 const persist = () => store.set(SAVE_KEY, save);
+// A cada abertura tenta um nível de qualidade acima; se pesar, o monitor baixa de novo em ~1s.
+if (save.quality < 2) save.quality++;
 if (!save.missions) {
   const ids = Object.keys(MISSION_POOL).sort(() => Math.random() - 0.5);
   save.missions = ids.slice(0, 3);
@@ -383,10 +385,11 @@ function vibrate(ms) {
 }
 
 // ================= Canvas & projeção =================
-const cv = $("c"), ctx = cv.getContext("2d");
+const cv = $("c");
+let ctx = cv.getContext("2d", { alpha: false });
 let W = 0, H = 0, DPR = 1, F = 1, KX = 1, HOR = 0, skyline = [], vignette = null;
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, [1, 1.5, 2][save.quality]);
+  DPR = Math.min(window.devicePixelRatio || 1, [1, 1.25, 1.75][save.quality]);
   W = window.innerWidth; H = window.innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -413,6 +416,10 @@ function poly(pts, fill) {
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
 }
+// Desenho em lote: várias formas no mesmo caminho e um único fill.
+function addPts(pts) { ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); }
+function addQuadZ(x0, x1, z0, z1, y) { addPts([P(x0, y, z0), P(x1, y, z0), P(x1, y, z1), P(x0, y, z1)]); }
+function addDot(x, y, z, r) { const p = P(x, y, z), rr = Math.max(0.6, r * scaleAt(z) * KX); ctx.moveTo(p[0] + rr, p[1]); ctx.arc(p[0], p[1], rr, 0, Math.PI * 2); }
 function quadZ(x0, x1, z0, z1, y, fill) { poly([P(x0, y, z0), P(x1, y, z0), P(x1, y, z1), P(x0, y, z1)], fill); }
 function faceZ(x0, x1, y0, y1, z, fill) { poly([P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)], fill); }
 
@@ -575,10 +582,13 @@ function makeProp(side, z) {
   else if (kind === "cow") xo = rand(2, 7);
   else if (kind === "tree" && b === "road") xo = rand(0.5, 9);
   else if (kind === "billboard") xo = 1.4;
+  else if (kind === "pylon") xo = 1.3;
   return { side, z, kind, xo, planter: b === "city", seed: Math.random(), color: pick(AWNINGS), text: pick(BILLBOARDS) };
 }
 const props = [];
+const texPool = []; // canvases de fachada reaproveitados
 function initDecor() {
+  for (const b of decor) if (b.tex) texPool.push(b.tex);
   decor.length = 0; props.length = 0;
   for (const side of [-1, 1]) {
     let z = -8;
@@ -1065,7 +1075,7 @@ function update(dt, realDt) {
     if (o.z + o.type.len / 2 < CFG.despawnZ) { despawn(i); continue; }
     if (playing) {
       const hw = (CFG.playerW + o.type.w) / 2 * CFG.hitShrink, hd = (CFG.playerDepth + o.type.len) / 2 * CFG.hitShrink;
-      if (Math.abs(o.x - player.x) < hw && Math.abs(o.z) < hd) { die(o); break; }
+      if (Math.abs(o.x - player.x) < hw && Math.abs(o.z) < hd && !window.__god) { die(o); break; }
     }
   }
 
@@ -1085,6 +1095,7 @@ function update(dt, realDt) {
     if (b.z + b.len / 2 < -8) {
       let maxZ = -Infinity; for (const o of decor) if (o.side === b.side) maxZ = Math.max(maxZ, o.z + o.len / 2);
       const side = b.side, len = rand(2.5, 4.5), gap = rand(0.3, 1.2);
+      if (b.tex) texPool.push(b.tex);
       for (const k in b) delete b[k];
       Object.assign(b, makeBuilding(side, maxZ + gap + len / 2, len));
     }
@@ -1123,17 +1134,19 @@ const NEAR = () => CFG.camZ + 0.5;
 function drawClouds() {
   ctx.fillStyle = rgbStr(mixRgb(mixRgb([255, 255, 255], ENV.hor, 0.2), ENV.top, ENV.night * 0.55));
   const k = W / 390;
+  ctx.globalAlpha = 1 - ENV.night * 0.75;
   for (const c of clouds) {
     const x = c.x * W, y = c.y * HOR, r = 16 * c.s * k;
     for (const [dx, dy, rr] of [[0, 0, 1], [1.1, -0.4, 1.3], [2.3, 0, 0.95], [1.2, 0.25, 1.1]]) {
       ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, rr * r, 0, Math.PI * 2); ctx.fill();
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 const GROUND = { city: PAL.asphalt, beach: "#3FB8D8", bridge: "#3E8FB8", road: "#7DBE6A" };
 const SIDEWALK = {
-  city:   { base: PAL.cream, joint: PAL.curb, step: 1.5, wave: "#D7A274", bands: [-0.5, 0.5], curb: true },
+  city:   { base: PAL.cream, joint: PAL.curb, step: 1.2, wave: null, tiles: true, curb: true },
   beach:  { base: "#F3EFE6", joint: null, wave: null, fish: true, curb: true },  // mosaico de peixinhos
   bridge: { base: "#CDCFD8", joint: "#AEB1BD", step: 3, wave: null },
   road:   { base: "#D7B98C", joint: null, wave: null, pebbles: "#B89A6E", edgeLine: true },
@@ -1206,15 +1219,22 @@ function drawGround(sg, far) {
     case "bridge":
       for (const s of [-1, 1]) {
         fogQuad(s * (outer + 0.45), s * 90, z0, z1, -7, "#3E8FB8");
-        for (let i = Math.ceil((G.dist + z0) / 9); i * 9 - G.dist < Math.min(z1, 80); i++) {
+        ctx.beginPath();
+        for (let i = Math.ceil((G.dist + z0) / 9); i * 9 - G.dist < Math.min(z1, 70); i++) {
           const z = i * 9 - G.dist, h = hash(i * 3 + s);
-          fogQuad(s * (outer + 3 + h * 20), s * (outer + 4.5 + h * 20), z, z + 0.4, -6.99, "#6CB4D6");
+          addQuadZ(s * (outer + 3 + h * 20), s * (outer + 4.5 + h * 20), z, z + 0.4, -6.99);
         }
+        ctx.fillStyle = shade("#6CB4D6", 1, 0.2); ctx.fill();
         fogQuad(s * outer, s * (outer + 0.45), z0, sg.z1, 0.001, "#B9BCC8");
         const rx = s * (outer + 0.4);
         poly([P(rx, 0.92, z0), P(rx, 1.05, z0), P(rx, 1.05, sg.z1), P(rx, 0.92, sg.z1)], shade("#E8434E"));
         poly([P(rx, 0.5, z0), P(rx, 0.57, z0), P(rx, 0.57, sg.z1), P(rx, 0.5, sg.z1)], shade("#C9343F"));
-        for (let i = Math.ceil((G.dist + z0) / 2.5); i * 2.5 - G.dist < Math.min(sg.z1, 60); i++) box(rx, 0, i * 2.5 - G.dist, 0.1, 1.05, 0.1, "#C9CCD8");
+        ctx.beginPath();
+        for (let i = Math.ceil((G.dist + z0) / 2.5); i * 2.5 - G.dist < Math.min(sg.z1, 50); i++) {
+          const z = i * 2.5 - G.dist;
+          if (z > CFG.camZ + 0.5) addPts([P(rx - 0.05, 0, z), P(rx + 0.05, 0, z), P(rx + 0.05, 1.05, z), P(rx - 0.05, 1.05, z)]);
+        }
+        ctx.fillStyle = shade("#C9CCD8", 0.92, 0.1); ctx.fill();
         if (sg.z1 < far - 0.01) {
           faceZ(s * (outer + 0.45), s * 90, -7, 0, sg.z1, shade("#8B7B5E", 1, fogAt(sg.z1)));
           faceZ(s * (outer + 0.45), s * 90, -0.6, 0, sg.z1 - 0.01, shade("#6E9E58", 1, fogAt(sg.z1)));
@@ -1231,20 +1251,20 @@ function drawGround(sg, far) {
   }
 }
 
-/** Peixinho deitado no chão (plano y = 0), virado para +z (dir 1) ou -z (dir -1). */
-function drawFloorFish(x, z, dir, ang, col, fog) {
+/** Peixinho deitado no chão (plano y = 0), virado para +z (dir 1) ou -z (dir -1); só adiciona ao caminho. */
+function addFloorFish(x, z, dir, ang, eyes) {
   const c = Math.cos(ang), sn = Math.sin(ang);
   const W2 = (u, v) => P(x + u * sn * dir + v * c, 0.003, z + u * c * dir - v * sn * dir);
   const body = [];
   for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) body.push(W2(0.32 * Math.cos(a), 0.15 * Math.sin(a)));
-  poly(body, shade(col, 1, fog));
-  poly([W2(-0.26, 0), W2(-0.52, 0.17), W2(-0.52, -0.17)], shade(col, 1, fog));
-  poly([W2(0.02, 0.13), W2(-0.14, 0.24), W2(-0.12, 0.12)], shade(col, 0.8, fog));
-  if (fog < 0.4) { const e = W2(0.18, 0.05); ctx.beginPath(); ctx.arc(e[0], e[1], Math.max(0.6, 0.035 * scaleAt(z) * KX), 0, Math.PI * 2); ctx.fillStyle = "#FFFFFF"; ctx.fill(); }
+  addPts(body);
+  addPts([W2(-0.26, 0), W2(-0.52, 0.17), W2(-0.52, -0.17)]);
+  addPts([W2(0.02, 0.13), W2(-0.16, 0.25), W2(-0.12, 0.1)]);
+  if (z < 30) { const e = W2(0.18, 0.05); eyes.push([e[0], e[1], Math.max(0.6, 0.035 * scaleAt(z) * KX)]); }
 }
 
 function drawSidewalks(segs) {
-  const L = CFG.lane, inner = L - 1.05, maxZ = [28, 48, 70][save.quality], chunk = 8;
+  const L = CFG.lane, inner = L - 1.05, maxZ = [28, 48, 70][save.quality], chunk = 16;
   for (const sg of segs) {
     const st = SIDEWALK[sg.b.id];
     for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, sg.z0, sg.z1, 0, shade(st.base));
@@ -1253,10 +1273,21 @@ function drawSidewalks(segs) {
     if (st.edgeLine) for (const s of [-1, 1]) quadZ(s * (inner - 0.14), s * (inner - 0.06), sg.z0, sg.z1, ROAD_Y + 0.002, shade("#FFFFFF", 0.95));
     if (zB <= zA) continue;
     if (st.joint) {
-      for (let z = Math.ceil((G.dist + zA) / st.step) * st.step - G.dist; z < zB; z += st.step) {
-        const col = shade(st.joint, 1, fogAt(z));
-        for (const s of [-1, 1]) quadZ(s * L - 1.05, s * L + 1.05, z, z + 0.05, 0.001, col);
+      ctx.beginPath();
+      for (let z = Math.ceil((G.dist + zA) / st.step) * st.step - G.dist; z < Math.min(zB, 45); z += st.step)
+        for (const s of [-1, 1]) addQuadZ(s * L - 1.05, s * L + 1.05, z, z + 0.05, 0.001);
+      ctx.fillStyle = shade(st.joint, 1, 0.1); ctx.fill();
+    }
+    if (st.tiles) { // juntas longitudinais + placas alternadas levemente mais escuras
+      ctx.beginPath();
+      for (const s of [-1, 1]) for (const xo of [-0.35, 0.35]) addQuadZ(s * L + xo - 0.025, s * L + xo + 0.025, zA, Math.min(zB, 45), 0.001);
+      ctx.fillStyle = shade(st.joint, 1, 0.1); ctx.fill();
+      ctx.beginPath();
+      for (let z = Math.ceil((G.dist + zA) / st.step) * st.step - G.dist; z < Math.min(zB, 45); z += st.step) {
+        const k = Math.round((z + G.dist) / st.step);
+        for (const s of [-1, 1]) { const xo = (k % 2 ? -0.35 : 0.35); addQuadZ(s * L + xo - 0.32, s * L + xo + 0.32, z + 0.03, z + st.step - 0.03, 0.0005); }
       }
+      ctx.fillStyle = shade(st.base, 0.95, 0.1); ctx.fill();
     }
     if (st.wave) for (const s of [-1, 1]) for (const off of st.bands) {
       for (let z0 = zA; z0 < zB; z0 += chunk) {
@@ -1269,26 +1300,48 @@ function drawSidewalks(segs) {
       }
     }
     if (st.fish) {
-      const cols = ["#2E5E8A", "#2E2E3A", "#3FB8D8", "#2E5E8A", "#E8434E"];
+      const cols = ["#2E5E8A", "#2E2E3A", "#3FB8D8", "#2E5E8A", "#E8434E"], byCol = {}, eyes = [];
       for (let i = Math.ceil((G.dist + zA) / 2.4); i * 2.4 - G.dist < zB; i++) {
         for (const s of [-1, 1]) {
           const h = hash(i * 2 + s), z = i * 2.4 - G.dist + hash(i * 2 + s + 0.3) * 0.9;
           if (z < zA || z > zB) continue;
-          drawFloorFish(s * CFG.lane + (h - 0.5) * 1.1, z, hash(i + s * 0.7) < 0.5 ? 1 : -1, (hash(i * 3 + s) - 0.5) * 0.7,
-            cols[(hash(i * 5 + s) * cols.length) | 0], fogAt(z));
+          const col = cols[(hash(i * 5 + s) * cols.length) | 0];
+          (byCol[col] = byCol[col] || []).push([s * CFG.lane + (h - 0.5) * 1.1, z, hash(i + s * 0.7) < 0.5 ? 1 : -1, (hash(i * 3 + s) - 0.5) * 0.7]);
         }
       }
+      for (const col in byCol) {
+        ctx.beginPath();
+        for (const f of byCol[col]) addFloorFish(f[0], f[1], f[2], f[3], eyes);
+        ctx.fillStyle = shade(col, 1, 0.1); ctx.fill();
+      }
+      ctx.beginPath(); for (const e of eyes) { ctx.moveTo(e[0] + e[2], e[1]); ctx.arc(e[0], e[1], e[2], 0, Math.PI * 2); }
+      ctx.fillStyle = "#FFFFFF"; ctx.fill();
     }
     if (st.pebbles && save.quality >= 1) {
+      ctx.beginPath();
       for (let i = Math.ceil((G.dist + zA) / 0.9); i * 0.9 - G.dist < Math.min(zB, 40); i++) {
         const z = i * 0.9 - G.dist;
-        for (const s of [-1, 1]) { const h = hash(i * 2 + s); if (h < 0.5) ball(s * (L - 0.9 + h * 3.6), 0.01, z, 0.05, st.pebbles); }
+        for (const s of [-1, 1]) { const h = hash(i * 2 + s); if (h < 0.5) addDot(s * (L - 0.9 + h * 3.6), 0.01, z, 0.05); }
       }
+      ctx.fillStyle = shade(st.pebbles); ctx.fill();
     }
   }
 }
 
+const skyCv = document.createElement("canvas");
+let skyFrame = 0;
 function drawWorld() {
+  if (skyFrame++ % 8 === 0 || skyCv.width !== Math.ceil(W * DPR)) {
+    skyCv.width = Math.ceil(W * DPR); skyCv.height = Math.ceil((HOR + 2) * DPR);
+    const main = ctx;
+    ctx = skyCv.getContext("2d"); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawSkyLayer();
+    ctx = main;
+  }
+  ctx.drawImage(skyCv, 0, 0, W, HOR + 2);
+  drawLowerWorld();
+}
+function drawSkyLayer() {
   const sky = ctx.createLinearGradient(0, 0, 0, HOR);
   sky.addColorStop(0, rgbStr(ENV.top)); sky.addColorStop(1, rgbStr(ENV.hor));
   ctx.fillStyle = sky; ctx.fillRect(-20, -20, W + 40, HOR + 21);
@@ -1302,6 +1355,8 @@ function drawWorld() {
   if (ENV.night > 0.5) { ctx.beginPath(); ctx.arc(W * 0.8 + r * 0.45, HOR * 0.45 - r * 0.2, r * 0.85, 0, Math.PI * 2); ctx.fillStyle = rgbStr(ENV.top); ctx.fill(); }
   drawClouds();
   drawSkyline(biomeAt(G.dist + 50).id);
+}
+function drawLowerWorld() {
 
   const near = NEAR(), far = CFG.farZ, L = CFG.lane, inner = L - 1.05, ry = ROAD_Y;
   ctx.fillStyle = shade(GROUND[biomeAt(G.dist + far).id], 1, 0.6); ctx.fillRect(-20, HOR, W + 40, H - HOR + 20);
@@ -1310,21 +1365,24 @@ function drawWorld() {
 
   // asfalto do meio
   quadZ(-inner, inner, near, far, ry, shade(PAL.asphalt));
-  const seg = 5;
-  for (let i = Math.floor((G.dist + near) / seg); i * seg - G.dist < far; i++) {
-    const h = hash(i), z = i * seg - G.dist + hash(i + 0.5) * seg, fog = fogAt(z);
+  const seg = 5, oils = [];
+  ctx.beginPath();
+  for (let i = Math.floor((G.dist + near) / seg); i * seg - G.dist < 70; i++) {
+    const h = hash(i), z = i * seg - G.dist + hash(i + 0.5) * seg;
     if (z < near) continue;
     if (h < 0.3) {
       const l = 0.6 + hash(i + 0.7) * 1.4, w = 0.25 + hash(i + 0.9) * 0.35, x = (hash(i + 0.2) - 0.5) * (2 * inner - w);
-      quadZ(x - w / 2, x + w / 2, z, z + l, ry + 0.001, shade(PAL.asphalt, 0.84, fog));
-    } else if (h > 0.8) {
-      const p = P((hash(i + 0.3) - 0.5) * inner, ry, z), s = scaleAt(z) * KX;
-      ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.26 * s, Math.max(0.5, 0.06 * s), 0, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(25,25,45,${0.3 * (1 - fog)})`; ctx.fill();
-    }
+      addQuadZ(x - w / 2, x + w / 2, z, z + l, ry + 0.001);
+    } else if (h > 0.8) oils.push([(hash(i + 0.3) - 0.5) * inner, z]);
   }
+  ctx.fillStyle = shade(PAL.asphalt, 0.86, 0.15); ctx.fill();
+  ctx.beginPath();
+  for (const [ox, oz] of oils) { const p = P(ox, ry, oz), s = scaleAt(oz) * KX; ctx.moveTo(p[0] + 0.26 * s, p[1]); ctx.ellipse(p[0], p[1], 0.26 * s, Math.max(0.5, 0.06 * s), 0, 0, Math.PI * 2); }
+  ctx.fillStyle = "rgba(25,25,45,0.22)"; ctx.fill();
   const dstep = 5, doff = G.dist % dstep;
-  for (let z = -doff; z < far; z += dstep) { if (z + 2 < near) continue; quadZ(-0.05, 0.05, Math.max(z, near), z + 2, ry + 0.002, shade("#FFE38A", 0.95, fogAt(z))); }
+  ctx.beginPath();
+  for (let z = -doff; z < 75; z += dstep) { if (z + 2 < near) continue; addQuadZ(-0.05, 0.05, Math.max(z, near), z + 2, ry + 0.002); }
+  ctx.fillStyle = shade("#FFE38A", 0.95, 0.15); ctx.fill();
   // faixa de pedestre a cada 90m (só na cidade)
   const cw = 90, sw = (2 * inner) / 5;
   for (let k = Math.ceil((G.dist + near - 3) / cw); k * cw - G.dist < far; k++) {
@@ -1358,11 +1416,14 @@ function drawWorld() {
 }
 
 /** Texto de frente para a câmera (placas, outdoors). */
+const textW = new Map();
 function faceText(x, y, z, text, sizeM, maxWm, color) {
   const p = P(x, y, z), s = scaleAt(z) * KX;
   if (sizeM * s < 5) return;
   ctx.font = `900 ${sizeM * s}px sans-serif`;
-  const tw = ctx.measureText(text).width, k = Math.min(1, (maxWm * s) / tw);
+  let w100 = textW.get(text);
+  if (w100 === undefined) { const f = ctx.font; ctx.font = "900 100px sans-serif"; w100 = ctx.measureText(text).width; textW.set(text, w100); ctx.font = f; }
+  const tw = w100 * sizeM * s / 100, k = Math.min(1, (maxWm * s) / tw);
   ctx.save(); ctx.translate(p[0], p[1]); ctx.scale(k, 1);
   ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = color; ctx.fillText(text, 0, 0);
   ctx.restore();
@@ -1379,72 +1440,102 @@ function drawWelcome(z, b) {
     faceText(x, 2.2, z - 0.08, b.name, 0.42, 2.5, "#FFFFFF");
   }
 }
-function wallSign(fx, side, y0, y1, za, zb, text, col, fog) {
-  const face = (ya, yb, z0, z1, c) => poly([P(fx, ya, z0), P(fx, yb, z0), P(fx, yb, z1), P(fx, ya, z1)], c);
-  face(y0 - 0.04, y1 + 0.04, za - 0.04, zb + 0.04, shade("#FFFFFF", 0.95, fog));
-  face(y0, y1, za, zb, shade(col, 1, fog));
-  // texto projetado no plano da parede (afim, boa aproximação para uma placa curta)
-  const zs = side > 0 ? zb : za, ze = side > 0 ? za : zb, len = Math.abs(zb - za), hgt = y1 - y0;
-  const p0 = P(fx, y1, zs), pu = P(fx, y1, ze), pv = P(fx, y0, zs);
-  if (Math.hypot(pu[0] - p0[0], pu[1] - p0[1]) < 34 || fog > 0.5) return;
-  ctx.save();
-  ctx.transform((pu[0] - p0[0]) / len / 100, (pu[1] - p0[1]) / len / 100, (pv[0] - p0[0]) / hgt / 100, (pv[1] - p0[1]) / hgt / 100, p0[0], p0[1]);
-  ctx.font = `900 ${Math.min(hgt * 70, len * 100 / (text.length * 0.62))}px sans-serif`;
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillStyle = "#FFFFFF"; ctx.fillText(text, len * 50, hgt * 52);
-  ctx.restore();
+// Fachadas viram texturas (pintadas uma vez) e são coladas em fatias com perspectiva:
+// ~10 desenhos por prédio em vez de ~60.
+const PPM = 32; // pixels de textura por metro
+const hexK = (hex, k) => { const c = hexToRgb(hex); return rgbStr([Math.min(255, c[0] * k), Math.min(255, c[1] * k), Math.min(255, c[2] * k)]); };
+function buildFacade(b, night) {
+  const cv2 = b.tex || texPool.pop() || document.createElement("canvas");
+  const tw = Math.ceil(b.len * PPM), th = Math.ceil(b.h * PPM);
+  if (cv2.width !== tw || cv2.height !== th) { cv2.width = tw; cv2.height = th; }
+  const c = cv2.getContext("2d");
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  // espaço em metros: u ao longo da fachada (z), v para cima; lado direito espelhado
+  // para que a textura cresça no mesmo sentido da tela.
+  const mirror = b.side > 0;
+  const R = (za, zb, y0, y1, col) => {
+    const u0 = mirror ? b.len - zb : za, u1 = mirror ? b.len - za : zb;
+    c.fillStyle = col; c.fillRect(u0 * PPM, (b.h - y1) * PPM, (u1 - u0) * PPM, (y1 - y0) * PPM);
+  };
+  R(0, b.len, 0, b.h, hexK(b.color, 0.72));
+  R(0, b.len, 0, 0.18, hexK(b.color, 0.5));
+  for (let y = 1.6; y < b.h - 0.3; y += 1.4) R(0, b.len, y - 0.07, y, hexK(b.color, 0.62));
+  R(0, b.len, b.h - 0.24, b.h, hexK(b.color, 0.55));
+  const cols = Math.max(1, Math.floor(b.len / 1.3)), cw = b.len / cols, frame = hexK(b.trim, 0.95);
+  let n = 0;
+  for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < cols; k++) {
+    const za = k * cw + cw * 0.22, zb = za + cw * 0.56, on = night && Math.sin(b.seed + n++ * 12.9898) > -0.2;
+    R(za - 0.06, zb + 0.06, y - 0.07, y + 0.77, frame);
+    R(za, zb, y, y + 0.7, on ? "#FFE38A" : "#7FB8D8");
+    if (!on) R(za, za + (zb - za) * 0.35, y + 0.38, y + 0.7, "#D4EEF9");
+    R(za - 0.1, zb + 0.1, y - 0.13, y - 0.05, hexK(b.trim, 0.8));
+  }
+  if (b.shop) {
+    R(0.25, b.len - 0.25, 0.2, 1.15, night ? "#FFE9A8" : "#3B5070");
+    if (!night) R(0.3, 0.3 + (b.len - 0.6) * 0.3, 0.75, 1.15, "#5E7898");
+    R(0.26, b.len - 0.26, 1.54, 2.02, "#FFFFFF");
+    R(0.3, b.len - 0.3, 1.58, 1.98, b.awning);
+    const len = b.len - 0.6, size = Math.min(0.3, len / (b.sign.length * 0.62));
+    c.font = `900 ${size * PPM}px sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#FFFFFF";
+    c.fillText(b.sign, (b.len / 2) * PPM, (b.h - 1.78) * PPM);
+  } else {
+    R(b.len / 2 - 0.38, b.len / 2 + 0.38, 0.18, 1.3, frame);
+    R(b.len / 2 - 0.32, b.len / 2 + 0.32, 0.18, 1.22, "#7B4A2A");
+    R(b.len / 2 - 0.015, b.len / 2 + 0.015, 0.18, 1.22, "#5A3520");
+  }
+  b.tex = cv2; b.texNight = night;
 }
+let texBudget = 0; // limita quantas texturas são refeitas por quadro (ex.: quando anoitece)
 
 function drawBuilding(b) {
   if (b.kind === "empty") return;
   const x = b.side * (CFG.lane + 1.6 + b.w / 2), fog = fogAt(b.z);
-  box(x, 0, b.z, b.w, b.h, b.len, b.color, { noTop: true });
-  const z0 = b.z - b.len / 2, z1 = b.z + b.len / 2;
-  if (fog > 0.85 || z1 < CFG.camZ + 0.5 || z0 > [30, 50, 80][save.quality]) return; // longe: só o volume
-  const fx = x - b.side * b.w / 2;
-  const wall = (y0, y1, za, zb, c) => poly([P(fx, y0, za), P(fx, y1, za), P(fx, y1, zb), P(fx, y0, zb)], c);
-  const lit = rgbStr(mixRgb([255, 227, 138], ENV.hor, fog)), night = ENV.night > 0.5;
-
-  wall(0, 0.18, z0, z1, shade(b.color, 0.5, fog));                          // rodapé
-  for (let y = 1.6; y < b.h - 0.3; y += 1.4) wall(y - 0.07, y, z0, z1, shade(b.color, 0.62, fog)); // frisos
-  wall(b.h - 0.24, b.h, z0, z1, shade(b.color, 0.55, fog));                 // cornija
-
-  // janelas com moldura, peitoril e reflexo
-  const cols = Math.max(1, Math.floor(b.len / 1.3)), cw = b.len / cols, frame = shade(b.trim, 0.95, fog);
-  let n = 0;
-  for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < cols; k++) {
-    const za = z0 + k * cw + cw * 0.22, zb = za + cw * 0.56, on = night && Math.sin(b.seed + n++ * 12.9898) > -0.2;
-    wall(y - 0.07, y + 0.77, za - 0.06, zb + 0.06, frame);
-    wall(y, y + 0.7, za, zb, on ? lit : shade("#7FB8D8", 1, fog));
-    if (!on && fog < 0.5) wall(y + 0.38, y + 0.7, za, za + (zb - za) * 0.35, shade("#D4EEF9", 1, fog));
-    wall(y - 0.13, y - 0.05, za - 0.1, zb + 0.1, shade(b.trim, 0.8, fog));
-  }
-
-  if (b.shop) {
-    wall(0.2, 1.15, z0 + 0.25, z1 - 0.25, night ? rgbStr(mixRgb([255, 233, 168], ENV.hor, fog)) : shade("#3B5070", 1, fog));
-    if (!night && fog < 0.5) wall(0.75, 1.15, z0 + 0.3, z0 + 0.3 + (b.len - 0.6) * 0.3, shade("#5E7898", 1, fog));
-    // toldo listrado
-    const ax = fx - b.side * 0.55, segs = 6, sl = (b.len - 0.3) / segs;
-    for (let i = 0; i < segs; i++) {
-      const za = z0 + 0.15 + i * sl, zb = za + sl;
-      poly([P(fx, 1.45, za), P(fx, 1.45, zb), P(ax, 1.12, zb), P(ax, 1.12, za)], shade(i % 2 ? "#FFFFFF" : b.awning, 1, fog));
-    }
-    poly([P(ax, 1.12, z0 + 0.15), P(ax, 1.12, z1 - 0.15), P(ax, 0.97, z1 - 0.15), P(ax, 0.97, z0 + 0.15)], shade(b.awning, 0.8, fog));
-    if (save.quality >= 1) wallSign(fx, b.side, 1.58, 1.98, z0 + 0.3, z1 - 0.3, b.sign, b.awning, fog);
+  const z0 = b.z - b.len / 2, z1 = b.z + b.len / 2, fx = x - b.side * b.w / 2, xl = x - b.w / 2, xr = x + b.w / 2;
+  if (z1 < CFG.camZ + 0.5) return;
+  const face = [P(fx, 0, z0), P(fx, b.h, z0), P(fx, b.h, z1), P(fx, 0, z1)];
+  const detail = fog <= 0.85 && z0 <= [30, 50, 80][save.quality];
+  if (!detail) {
+    poly(face, shade(b.color, 0.72, fog));
   } else {
-    wall(0.18, 1.3, b.z - 0.38, b.z + 0.38, frame);
-    wall(0.18, 1.22, b.z - 0.32, b.z + 0.32, shade("#7B4A2A", 1, fog));
-    wall(0.18, 1.22, b.z - 0.015, b.z + 0.015, shade("#5A3520", 1, fog));
+    const night = ENV.night > 0.5;
+    if ((!b.tex || b.texNight !== night) && texBudget-- > 0) buildFacade(b, night);
   }
-
+  if (detail && !b.tex) poly(face, shade(b.color, 0.72, fog)); // textura ainda na fila
+  else if (detail) {
+    const tex = b.tex, n = clamp(Math.ceil(b.len / 0.6), 2, 8), sl = b.len / n, tw = tex.width / n;
+    for (let i = 0; i < n; i++) {
+      const za = z0 + i * sl, zb = za + sl;
+      if (zb < CFG.camZ + 0.5) continue;
+      const zm = (za + zb) / 2, pa = P(fx, 0, Math.max(za, CFG.camZ + 0.5)), pb = P(fx, 0, zb);
+      const top = P(fx, b.h, zm)[1], bot = P(fx, 0, zm)[1], dx = Math.min(pa[0], pb[0]);
+      const ti = b.side > 0 ? n - 1 - i : i;
+      ctx.drawImage(tex, ti * tw, 0, tw, tex.height, dx - 0.5, top, Math.abs(pb[0] - pa[0]) + 1, bot - top);
+    }
+    if (ENV.light < 0.98) poly(face, `rgba(10,10,30,${(1 - ENV.light) * 0.9})`);
+    if (fog > 0.05) poly(face, rgbStr(ENV.hor, fog));
+    if (b.shop) {
+      const ax = fx - b.side * 0.55;
+      if (z0 < 35) {
+        const segs = 6, s2 = (b.len - 0.3) / segs;
+        for (const odd of [0, 1]) {
+          ctx.beginPath();
+          for (let i = odd; i < segs; i += 2) { const za = z0 + 0.15 + i * s2, zb = za + s2; addPts([P(fx, 1.45, za), P(fx, 1.45, zb), P(ax, 1.12, zb), P(ax, 1.12, za)]); }
+          ctx.fillStyle = shade(odd ? "#FFFFFF" : b.awning, 1, fog); ctx.fill();
+        }
+      } else poly([P(fx, 1.45, z0 + 0.15), P(fx, 1.45, z1 - 0.15), P(ax, 1.12, z1 - 0.15), P(ax, 1.12, z0 + 0.15)], shade(b.awning, 1, fog));
+      poly([P(ax, 1.12, z0 + 0.15), P(ax, 1.12, z1 - 0.15), P(ax, 0.97, z1 - 0.15), P(ax, 0.97, z0 + 0.15)], shade(b.awning, 0.8, fog));
+    }
+  }
   // fachada frontal (lado que encara a câmera)
-  const xl = x - b.w / 2, xr = x + b.w / 2;
-  for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < 2; k++) {
-    const xa = lerp(xl, xr, 0.15 + k * 0.45), xb = xa + b.w * 0.28;
-    faceZ(xa, xb, y, y + 0.7, z0 - 0.01, night && hash(b.seed + y + k) > 0.4 ? lit : shade("#7FB8D8", 0.9, fog));
+  faceZ(xl, xr, 0, b.h, z0, shade(b.color, 0.92, fog));
+  if (detail && save.quality >= 2 && z0 < 30) {
+    const lit = rgbStr(mixRgb([255, 227, 138], ENV.hor, fog)), night = ENV.night > 0.5;
+    for (let y = 1.95; y < b.h - 0.75; y += 1.4) for (let k = 0; k < 2; k++) {
+      const xa = lerp(xl, xr, 0.15 + k * 0.45), xb = xa + b.w * 0.28;
+      faceZ(xa, xb, y, y + 0.7, z0 - 0.01, night && hash(b.seed + y + k) > 0.4 ? lit : shade("#7FB8D8", 0.9, fog));
+    }
   }
-  // caixa d'água azul no telhado
-  if (b.tank) {
+  if (b.tank && detail && fog < 0.5) {
     const tx = fx + b.side * 0.75;
     box(tx, b.h, z0 + 0.6, 0.9, 0.75, 0.9, "#3E7CB1", { noTop: true });
     faceZ(tx - 0.47, tx + 0.47, b.h + 0.75, b.h + 0.85, z0 + 0.14, shade("#2F5F8A", 1, fog));
@@ -1456,6 +1547,15 @@ function drawProp(p) {
   const sd = p.side, x = sd * (CFG.lane + 1.33 + p.xo), z = p.z, fog = fogAt(z);
   if (fog > 0.93) return;
   const s = scaleAt(z) * KX, ink = "rgba(43,45,66,.85)";
+  if (fog > 0.35) { // longe: silhueta simples
+    switch (p.kind) {
+      case "tree": box(x, 0, z, 0.13, 1.4, 0.13, "#7B4A2A"); ball(x, 1.8, z, 0.65, "#4CAF6A"); return;
+      case "palm": box(x - sd * 0.15, 0, z, 0.18, 3.4, 0.18, "#8A6A45"); ball(x - sd * 0.3, 3.45, z, 0.6, "#4CAF6A"); return;
+      case "bush": ball(x, 0.32, z, 0.45, "#4E8F3A"); return;
+      case "hydrant": case "bin": case "fence": return;
+      case "umbrella": box(x, 0, z, 0.05, 1.7, 0.05, "#FFFFFF"); ball(x, 1.7, z, 0.5, p.color); return;
+    }
+  }
   switch (p.kind) {
     case "tree":
       shadow(x, z, 1.1, 1.1);
@@ -1548,7 +1648,8 @@ function drawProp(p) {
       poly([P(x + 0.47, 3.08, z), P(x + 0.95, 2.95, z), P(x + 0.47, 2.82, z)], shade("#FFD23F", 1, fog));
       break;
     case "pylon": {
-      box(x, 0, z, 0.55, 11, 0.55, "#C9CCD8");
+      if (z < 4) return; // colada na câmera vira um borrão gigante
+      box(x, -7, z, 0.6, 18, 0.6, "#C9CCD8");
       faceZ(x - 0.28, x + 0.28, 10.2, 10.6, z - 0.28, shade("#E8434E", 1, fog));
       ctx.strokeStyle = shade("#E8E8F0", 1, fog); ctx.lineWidth = Math.max(1, 0.025 * s);
       ctx.beginPath();
@@ -1593,6 +1694,7 @@ function drawProp(p) {
 function drawObstacle(o) {
   const t = o.type, x = o.x, z = o.z, fog = fogAt(z), sx = Math.sign(x) || 1;
   if (z - t.len / 2 > CFG.farZ) return;
+  if (fog > 0.45 && t.id !== "hole") { box(x, 0, z, t.w * 0.8, t.h, t.len * 0.8, PAL.danger); return; }
   const f = (x0, x1, y0, y1, zz, c, k) => faceZ(x0, x1, y0, y1, zz, shade(c, k || 1, fog));
   switch (t.id) {
     case "hole": {
@@ -1682,8 +1784,7 @@ function drawCoin(c) {
   ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = "rgba(43,45,66,.8)"; ctx.stroke();
   ctx.beginPath(); ctx.ellipse(p[0], p[1], w * 0.72, 0.22 * s, 0, 0, Math.PI * 2);
   ctx.fillStyle = shade(PAL.reward, 1.1, fogAt(c.z)); ctx.fill();
-  if (w > 6) { ctx.font = `900 ${0.26 * s}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillStyle = "#1fae74"; ctx.save(); ctx.translate(p[0], p[1]); ctx.scale(w / (0.3 * s), 1); ctx.fillText("V", 0, 0); ctx.restore(); ctx.textBaseline = "alphabetic"; }
+  if (w > 4) { ctx.beginPath(); ctx.ellipse(p[0], p[1], w * 0.3, 0.1 * s, 0, 0, Math.PI * 2); ctx.fillStyle = "#1fae74"; ctx.fill(); }
 }
 
 function drawBus() {
@@ -1763,6 +1864,7 @@ const hudEls = { score: $("score"), coins: $("coinsHud"), bus: $("busd"), hot: f
 function setText(el, v) { v = String(v); if (el.textContent !== v) el.textContent = v; }
 
 function render() {
+  texBudget = 4;
   ctx.save();
   if (shakeT > 0) ctx.translate(rand(-6, 6) * shakeT * 3, rand(-6, 6) * shakeT * 3);
   drawWorld();
@@ -1802,16 +1904,17 @@ document.addEventListener("visibilitychange", () => {
 });
 const PERF = { acc: 0, n: 0 };
 function frame(now) {
+  if (now - last < 14) { requestAnimationFrame(frame); return; }
   const raw = (now - last) / 1000, realDt = Math.min(raw, 1 / 30);
   last = now;
   if (G.state === "playing" && !hidden && raw < 0.5) {
     PERF.acc += raw; PERF.n++;
-    if (PERF.n >= 90) {
-      if (PERF.acc / PERF.n > 1 / 48 && save.quality > 0) { save.quality--; persist(); resize(); }
+    if (PERF.n >= 60) {
+      if (PERF.acc / PERF.n > 1 / 50 && save.quality > 0) { save.quality--; persist(); resize(); }
       PERF.acc = 0; PERF.n = 0;
     }
   }
-  if (!hidden) { update(realDt * G.timeScale, realDt); render(); }
+  if (!hidden) { const t0 = performance.now(); update(realDt * G.timeScale * (window.__ts || 1), realDt); render(); window.__work = performance.now() - t0; }
   requestAnimationFrame(frame);
 }
 refreshMenu();
