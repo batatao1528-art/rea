@@ -62,7 +62,8 @@
   .blink { animation: blink 1s steps(2) infinite; font-size: 22px; font-weight: 900; margin: 18px 0 0; }
   @keyframes blink { 50% { opacity: .2; } }
 
-  #menu h1 { font-size: 66px; margin: 0; color: var(--player); transform: rotate(-4deg); line-height: 1; }
+  #menu h1 { white-space: nowrap; font-size: min(66px, 16vw); margin: 0; color: var(--player); transform: rotate(-4deg); line-height: 1; }
+  html[lang="en"] #menu h1 { font-size: min(50px, 11vw); }
   #menu .sub { font-size: 19px; font-weight: 800; margin: 12px 0 0; }
   #menu .stats { font-size: 18px; font-weight: 900; margin-top: 14px; }
   #menu .stats b { color: var(--reward); }
@@ -108,67 +109,68 @@
 <div id="combo" class="outline"></div>
 <div id="banner" class="outline"></div>
 <div id="count" class="outline hidden">3</div>
-<div id="hint" class="outline hidden"><span>👆</span>TOQUE!</div>
+<div id="hint" class="outline hidden"><span>👆</span><i data-t="hint" style="font-style:normal">TOQUE!</i></div>
 <div id="toast"></div>
 
 <div id="menu" class="screen show outline">
-  <h1>ATRASADO!</h1>
-  <p class="sub">Toque para trocar de calçada.<br>Troque no último segundo!</p>
-  <div class="stats">Recorde <b id="menuBest">0m</b> · Mais perto do busão <b id="menuClosest">—</b><br>🎫 <b id="menuCoins">0</b> vales · Lugares <b id="menuPlaces">1/4</b></div>
+  <h1 data-t="title">ATRASADO!</h1>
+  <p class="sub" data-t="sub"></p>
+  <div class="stats" id="menuStats"></div>
   <div class="spacer"></div>
-  <p class="blink">TOQUE PARA CORRER</p>
+  <p class="blink" data-t="tapToRun"></p>
   <div class="row">
-    <button id="btnShop" class="gold">👕 Loja</button>
-    <button id="btnMissions" class="alt">🎯 Missões</button>
+    <button id="btnShop" class="gold" data-t="shop"></button>
+    <button id="btnMissions" class="alt" data-t="missions"></button>
     <button id="btnSound" class="alt icon" aria-label="Som">🔊</button>
+    <button id="btnLang" class="alt icon" aria-label="Idioma / Language">PT</button>
   </div>
 </div>
 
 <div id="over" class="screen outline">
-  <h2 id="ovTitle">Faltaram 12m pro busão!</h2>
+  <h2 id="ovTitle"></h2>
   <p id="ovCaption"></p>
   <div id="ovScore">0</div>
   <div class="statgrid">
-    <span>Distância</span><b id="stDist">0m</b>
-    <span>Por um triz</span><b id="stNear">0</b>
-    <span>Maior combo</span><b id="stCombo">x0</b>
-    <span>Mais perto do busão</span><b id="stBus">0m</b>
-    <span>Vales</span><b id="stCoins">0</b>
+    <span data-t="stDist"></span><b id="stDist">0m</b>
+    <span data-t="stNear"></span><b id="stNear">0</b>
+    <span data-t="stCombo"></span><b id="stCombo">x0</b>
+    <span data-t="stBus"></span><b id="stBus">0m</b>
+    <span data-t="stCoins"></span><b id="stCoins">0</b>
   </div>
   <div id="ovMissions"></div>
   <div class="row">
-    <button id="btnContinue">▶ Continuar (1x)</button>
+    <button id="btnContinue" data-t="cont"></button>
   </div>
   <div class="row">
-    <button id="btnShare" class="alt">📤 Compartilhar</button>
-    <button id="btnHome" class="alt">🏠 Menu</button>
+    <button id="btnShare" class="alt" data-t="share"></button>
+    <button id="btnHome" class="alt" data-t="home"></button>
   </div>
-  <p class="blink">TOQUE PARA TENTAR DE NOVO</p>
+  <p class="blink" data-t="tapRetry"></p>
 </div>
 
 <div id="pause" class="screen panel">
   <div class="card">
-    <h3>Pausado</h3>
-    <p style="margin:4px 0 0;font-weight:800">O busão não espera ninguém...</p>
-    <div class="row"><button id="btnResume">▶ Continuar</button><button id="btnPauseHome" class="alt">🏠 Menu</button></div>
+    <h3 data-t="paused"></h3>
+    <p style="margin:4px 0 0;font-weight:800" data-t="pausedSub"></p>
+    <div class="row"><button id="btnResume" data-t="resume"></button><button id="btnPauseHome" class="alt" data-t="home"></button></div>
   </div>
 </div>
 
 <div id="shop" class="screen panel">
   <div class="card">
-    <h3>Loja do Zé</h3>
-    <div class="wallet">🎫 <span id="shopCoins">0</span> vales</div>
+    <h3 data-t="shopTitle"></h3>
+    <div class="wallet">🎫 <span id="shopCoins">0</span> <span data-t="currency"></span></div>
     <div class="grid" id="shopGrid"></div>
-    <div class="row"><button id="btnShopClose" class="alt">Fechar</button></div>
+    <div class="row"><button id="btnShopClose" class="alt" data-t="close"></button></div>
   </div>
 </div>
 
 <div id="missions" class="screen panel">
   <div class="card">
-    <h3>Missões</h3>
-    <div style="font-weight:800">Complete numa única partida.</div>
+    <h3 data-t="missionsTitle"></h3>
+    <div style="font-weight:800" data-t="missionsSub"></div>
     <ul class="missions" id="missionList"></ul>
-    <div class="row"><button id="btnMissionsClose" class="alt">Fechar</button></div>
+    <div class="row"><button id="btnMissionsClose" class="alt" data-t="close"></button></div>
   </div>
 </div>
 
@@ -191,35 +193,34 @@ const CFG = {
 };
 
 const TYPES = [
-  { id: "vovo",    w: 1.0, h: 1.5,  len: 1.0, own: 0, weight: 1.0, minD: 0,    caption: "A vovó e o carrinho de feira venceram." },
-  { id: "dog",     w: 0.9, h: 0.6,  len: 1.5, own: 0, weight: 1.0, minD: 0,    caption: "Tropeçou no salsicha. Ele tá bem. Você não." },
-  { id: "hole",    w: 1.3, h: 0.02, len: 1.3, own: 0, weight: 0.8, minD: 0,    caption: "Engolido pelo bueiro. Só sobrou o cabelo." },
-  { id: "boxes",   w: 1.2, h: 1.9,  len: 1.0, own: 0, weight: 0.8, minD: 0.12, caption: "Soterrado por encomendas." },
-  { id: "scooter", w: 0.7, h: 1.6,  len: 0.9, own: 7, weight: 0.8, minD: 0.3,  caption: "Atropelado por um patinete elétrico." },
+  { id: "vovo",    w: 1.0, h: 1.5,  len: 1.0, own: 0, weight: 1.0, minD: 0 },
+  { id: "dog",     w: 0.9, h: 0.6,  len: 1.5, own: 0, weight: 1.0, minD: 0 },
+  { id: "hole",    w: 1.3, h: 0.02, len: 1.3, own: 0, weight: 0.8, minD: 0 },
+  { id: "boxes",   w: 1.2, h: 1.9,  len: 1.0, own: 0, weight: 0.8, minD: 0.12 },
+  { id: "scooter", w: 0.7, h: 1.6,  len: 0.9, own: 7, weight: 0.8, minD: 0.3 },
 ];
 
 const SKINS = [
-  { id: "classic",  name: "Zé Clássico",      price: 0,    body: "#FFD23F", stripe: "#F2B800", legs: "#E6B800", tie: "#FF4F5A", hair: "#4A2F1E", head: "hair" },
-  { id: "bolinha",  name: "Bolinha",          price: 150,  body: "#6EC6FF", dots: "#FFFFFF",   legs: "#4BA3E0", tie: "#FFD23F", hair: "#2B2D42", head: "hair" },
-  { id: "exec",     name: "Executivo",        price: 300,  body: "#5C6378", shirt: "#FFFFFF",  legs: "#3F4555", tie: "#FF4F5A", hair: "#1E1E1E", head: "slick" },
-  { id: "carnaval", name: "Carnaval",         price: 500,  body: "#3EE6A1", stripe: "#FFD23F", legs: "#2BB57E", tie: "#FF9F1C", hair: "#2B2D42", head: "hat" },
-  { id: "pescador", name: "Zé Pescador",     price: 700,  body: "#E9E2C8", vest: "#6B7F4A", vestDark: "#55663A", legs: "#4A6A8A", boots: "#2F5E3E", hair: "#4A2F1E", head: "fisher", hat: "#C9B27C", hatBand: "#8C7A4E", rod: true },
-  { id: "dino",     name: "Dino",             price: 800,  body: "#7BD389", legs: "#5DB86C",   tie: "#FF4F5A", hair: "#4E9E5C", head: "dino" },
-  { id: "astro",    name: "Astronauta",       price: 1200, body: "#F4F4F8", stripe: "#DADAE6", legs: "#C9C9D6", tie: "#FF4F5A", hair: "#B5E2FA", head: "helmet" },
-  { id: "gold",     name: "Zé Dourado",       price: 2500, body: "#FFC300", stripe: "#FFE680", legs: "#D9A300", tie: "#FFFFFF", hair: "#FFC300", head: "hair" },
+  { id: "classic",  price: 0,    body: "#FFD23F", stripe: "#F2B800", legs: "#E6B800", tie: "#FF4F5A", hair: "#4A2F1E", head: "hair" },
+  { id: "bolinha",  price: 150,  body: "#6EC6FF", dots: "#FFFFFF",   legs: "#4BA3E0", tie: "#FFD23F", hair: "#2B2D42", head: "hair" },
+  { id: "exec",     price: 300,  body: "#5C6378", shirt: "#FFFFFF",  legs: "#3F4555", tie: "#FF4F5A", hair: "#1E1E1E", head: "slick" },
+  { id: "carnaval", price: 500,  body: "#3EE6A1", stripe: "#FFD23F", legs: "#2BB57E", tie: "#FF9F1C", hair: "#2B2D42", head: "hat" },
+  { id: "pescador", price: 700,  body: "#E9E2C8", vest: "#6B7F4A", vestDark: "#55663A", legs: "#4A6A8A", boots: "#2F5E3E", hair: "#4A2F1E", head: "fisher", hat: "#C9B27C", hatBand: "#8C7A4E", rod: true },
+  { id: "dino",     price: 800,  body: "#7BD389", legs: "#5DB86C",   tie: "#FF4F5A", hair: "#4E9E5C", head: "dino" },
+  { id: "astro",    price: 1200, body: "#F4F4F8", stripe: "#DADAE6", legs: "#C9C9D6", tie: "#FF4F5A", hair: "#B5E2FA", head: "helmet" },
+  { id: "gold",     price: 2500, body: "#FFC300", stripe: "#FFE680", legs: "#D9A300", tie: "#FFFFFF", hair: "#FFC300", head: "hair" },
 ];
 
 const MISSION_POOL = {
-  nears:  { text: (n) => `Faça ${n} POR UM TRIZ`,          targets: [3, 6, 10, 15, 22],      rewards: [40, 70, 110, 160, 220] },
-  dist:   { text: (n) => `Corra ${n}m`,                    targets: [300, 600, 1000, 1600, 2500], rewards: [40, 70, 110, 160, 220] },
-  coins:  { text: (n) => `Pegue ${n} vales`,               targets: [9, 21, 36, 54, 75],     rewards: [40, 70, 110, 160, 220] },
-  combo:  { text: (n) => `Faça um combo x${n}`,            targets: [2, 3, 4, 6, 8],         rewards: [40, 70, 110, 160, 220] },
-  bus:    { text: (n) => `Chegue a ${n}m do busão`,        targets: [9, 6, 4, 3, 2],         rewards: [40, 70, 110, 160, 220], lessIsBetter: true },
-  teases: { text: (n) => `Veja o busão fugir ${n}x`,       targets: [1, 2, 3, 4, 6],         rewards: [40, 70, 110, 160, 220] },
-  places: { text: (n) => `Passe por ${n} lugares`,         targets: [2, 3, 4, 4, 4],         rewards: [60, 120, 200, 260, 320] },
+  nears:  { targets: [3, 6, 10, 15, 22],      rewards: [40, 70, 110, 160, 220] },
+  dist:   { targets: [300, 600, 1000, 1600, 2500], rewards: [40, 70, 110, 160, 220] },
+  coins:  { targets: [9, 21, 36, 54, 75],     rewards: [40, 70, 110, 160, 220] },
+  combo:  { targets: [2, 3, 4, 6, 8],         rewards: [40, 70, 110, 160, 220] },
+  bus:    { targets: [9, 6, 4, 3, 2],         rewards: [40, 70, 110, 160, 220], lessIsBetter: true },
+  teases: { targets: [1, 2, 3, 4, 6],         rewards: [40, 70, 110, 160, 220] },
+  places: { targets: [2, 3, 4, 4, 4],         rewards: [60, 120, 200, 260, 320] },
 };
 
-const ESCAPE_LINES = ["VOLTA AQUI!", "ESPERA!!!", "PARA, MOÇO!", "SÉRIO?!", "O MOTORISTA TE VIU...<br>E ACELEROU.", "QUASE!!!", "NÃÃÃO!"];
 
 const PAL = {
   asphalt: "#5B5F97", cream: "#FFE8C2", curb: "#E9C99A", player: "#FFD23F", danger: "#FF4F5A",
@@ -300,6 +301,75 @@ if (!save.missions) {
   save.missions = ids.slice(0, 3);
   persist();
 }
+// ================= Idiomas (pt / en) =================
+const LANGS = {
+  pt: {
+    title: "ATRASADO!", sub: "Toque para trocar de calçada.<br>Troque no último segundo!",
+    stats: (best, closest, coins, places) => `Recorde <b>${best}m</b> · Mais perto do busão <b>${closest}</b><br>🎫 <b>${coins}</b> vales · Lugares <b>${places}</b>`,
+    tapToRun: "TOQUE PARA CORRER", shop: "👕 Loja", missions: "🎯 Missões", hint: "TOQUE!",
+    newRecord: "NOVO RECORDE!", missed: (n) => `Faltaram ${n}m pro busão!`, stillMissed: (n) => `E mesmo assim faltaram ${n}m pro busão.`,
+    stDist: "Distância", stNear: "Por um triz", stCombo: "Maior combo", stBus: "Mais perto do busão", stCoins: "Vales",
+    cont: "▶ Continuar (1x)", share: "📤 Compartilhar", home: "🏠 Menu", tapRetry: "TOQUE PARA TENTAR DE NOVO",
+    paused: "Pausado", pausedSub: "O busão não espera ninguém...", resume: "▶ Continuar",
+    shopTitle: "Loja do Zé", currency: "vales", close: "Fechar", missionsTitle: "Missões", missionsSub: "Complete numa única partida.",
+    using: "USANDO", use: "USAR", unlocked: (n) => `${n} desbloqueado!`, need: (n) => `Faltam ${n} vales. Bora correr!`,
+    near: "POR UM TRIZ!", byAHair: "POR UM FIO!!!", fromBus: (n, p) => `${n}m do busão · +${p}`,
+    escape: ["VOLTA AQUI!", "ESPERA!!!", "PARA, MOÇO!", "SÉRIO?!", "O MOTORISTA TE VIU...<br>E ACELEROU.", "QUASE!!!", "NÃÃÃO!"],
+    newPlace: "Lugar novo descoberto!", welcome: "BEM-VINDO À", kiosk: "COCO GELADO", busSign: "171 · CENTRO",
+    shareText: (n, d) => `Faltaram ${n}m pro busão 😭 Corri ${d}m no ATRASADO! Duvido você chegar mais perto. #FaltouPoucoProBusão`,
+    copied: "Copiado! Cola no TikTok 😉",
+    captions: { vovo: "A vovó e o carrinho de feira venceram.", dog: "Tropeçou no salsicha. Ele tá bem. Você não.",
+      hole: "Engolido pelo bueiro. Só sobrou o cabelo.", boxes: "Soterrado por encomendas.", scooter: "Atropelado por um patinete elétrico." },
+    skins: { classic: "Zé Clássico", bolinha: "Bolinha", exec: "Executivo", carnaval: "Carnaval", pescador: "Zé Pescador",
+      dino: "Dino", astro: "Astronauta", gold: "Zé Dourado" },
+    biomes: { city: "CENTRO", beach: "ORLA DA PRAIA", bridge: "PONTE", road: "ESTRADA DO INTERIOR" },
+    missionText: { nears: (n) => `Faça ${n} POR UM TRIZ`, dist: (n) => `Corra ${n}m`, coins: (n) => `Pegue ${n} vales`,
+      combo: (n) => `Faça um combo x${n}`, bus: (n) => `Chegue a ${n}m do busão`, teases: (n) => `Veja o busão fugir ${n}x`,
+      places: (n) => `Passe por ${n} lugares` },
+    signs: ["PADARIA", "FARMÁCIA", "BAR DO ZÉ", "AÇAÍ", "PASTEL", "SALÃO", "MERCADINHO", "LOTÉRICA", "CHAVEIRO", "SORVETES"],
+    billboards: ["BUSÃO? SÓ AMANHÃ.", "PASTEL A 2 KM", "VENDE-SE GALINHA", "PAMONHA QUENTINHA", "CALDO DE CANA 300m", "FAZENDA BOA VISTA"],
+  },
+  en: {
+    title: "RUNNING LATE!", sub: "Tap to switch sidewalks.<br>Switch at the last second!",
+    stats: (best, closest, coins, places) => `Best <b>${best}m</b> · Closest to the bus <b>${closest}</b><br>🎫 <b>${coins}</b> tickets · Places <b>${places}</b>`,
+    tapToRun: "TAP TO RUN", shop: "👕 Shop", missions: "🎯 Missions", hint: "TAP!",
+    newRecord: "NEW RECORD!", missed: (n) => `Missed the bus by ${n}m!`, stillMissed: (n) => `...and still missed the bus by ${n}m.`,
+    stDist: "Distance", stNear: "Near misses", stCombo: "Best combo", stBus: "Closest to the bus", stCoins: "Tickets",
+    cont: "▶ Continue (1x)", share: "📤 Share", home: "🏠 Menu", tapRetry: "TAP TO TRY AGAIN",
+    paused: "Paused", pausedSub: "The bus waits for no one...", resume: "▶ Resume",
+    shopTitle: "Zé's Shop", currency: "tickets", close: "Close", missionsTitle: "Missions", missionsSub: "Complete them in a single run.",
+    using: "EQUIPPED", use: "USE", unlocked: (n) => `${n} unlocked!`, need: (n) => `${n} more tickets. Keep running!`,
+    near: "NEAR MISS!", byAHair: "BY A HAIR!!!", fromBus: (n, p) => `${n}m from the bus · +${p}`,
+    escape: ["COME BACK!", "WAIT!!!", "STOP THE BUS!", "SERIOUSLY?!", "THE DRIVER SAW YOU...<br>AND SPED UP.", "SO CLOSE!!!", "NOOOO!"],
+    newPlace: "New place discovered!", welcome: "WELCOME TO", kiosk: "ICED COCONUT", busSign: "171 · DOWNTOWN",
+    shareText: (n, d) => `Missed the bus by ${n}m 😭 I ran ${d}m in RUNNING LATE! Bet you can't get any closer. #MissedTheBus`,
+    copied: "Copied! Paste it on TikTok 😉",
+    captions: { vovo: "Grandma and her shopping cart won.", dog: "Tripped over a wiener dog. He's fine. You're not.",
+      hole: "Swallowed by a manhole. Only the hair survived.", boxes: "Buried under deliveries.", scooter: "Run over by an e-scooter." },
+    skins: { classic: "Classic Zé", bolinha: "Polka Dots", exec: "Executive", carnaval: "Carnival", pescador: "Fisherman Zé",
+      dino: "Dino", astro: "Astronaut", gold: "Golden Zé" },
+    biomes: { city: "DOWNTOWN", beach: "BEACHFRONT", bridge: "THE BRIDGE", road: "COUNTRY ROAD" },
+    missionText: { nears: (n) => `Get ${n} NEAR MISSES`, dist: (n) => `Run ${n}m`, coins: (n) => `Grab ${n} tickets`,
+      combo: (n) => `Hit a x${n} combo`, bus: (n) => `Get within ${n}m of the bus`, teases: (n) => `Watch the bus escape ${n}x`,
+      places: (n) => `Pass through ${n} places` },
+    signs: ["BAKERY", "PHARMACY", "ZÉ'S BAR", "AÇAÍ", "PASTRIES", "SALON", "MINI MART", "LOTTERY", "LOCKSMITH", "ICE CREAM"],
+    billboards: ["BUS? MAYBE TOMORROW.", "PASTRIES 2 KM", "CHICKEN FOR SALE", "HOT CORN", "SUGARCANE JUICE 300m", "GOOD VIEW FARM"],
+  },
+};
+// Português para quem usa o celular em português; inglês para o resto do mundo.
+let LANG = "en";
+const T = () => LANGS[LANG];
+function detectLang() {
+  const sys = (navigator.language || "en").toLowerCase();
+  return save.lang || (sys.startsWith("pt") ? "pt" : "en");
+}
+function applyLang() {
+  document.documentElement.lang = LANG === "pt" ? "pt-BR" : "en";
+  for (const el of document.querySelectorAll("[data-t]")) el.innerHTML = T()[el.dataset.t];
+  textW.clear();
+  for (const b of decor) b.texNight = null; // letreiros redesenhados no novo idioma
+}
+
 const currentSkin = () => SKINS.find((s) => s.id === save.skin) || SKINS[0];
 
 // ================= Áudio sintetizado =================
@@ -516,10 +586,10 @@ function addBreather() {
 
 // ================= Lugares (mudam com a distância) =================
 const BIOMES = [
-  { id: "city",   name: "CENTRO",              icon: "🏙️", len: 500 },
-  { id: "beach",  name: "ORLA DA PRAIA",       icon: "🏖️", len: 500 },
-  { id: "bridge", name: "PONTE",               icon: "🌉", len: 300 },
-  { id: "road",   name: "ESTRADA DO INTERIOR", icon: "🌾", len: 700 },
+  { id: "city",   icon: "🏙️", len: 500 },
+  { id: "beach",  icon: "🏖️", len: 500 },
+  { id: "bridge", icon: "🌉", len: 300 },
+  { id: "road",   icon: "🌾", len: 700 },
 ];
 let BIOME_CYCLE = 0;
 for (const b of BIOMES) { b.start = BIOME_CYCLE; BIOME_CYCLE += b.len; }
@@ -544,17 +614,15 @@ function biomeSegments(near, far) {
 }
 
 // ================= Cenário =================
-const SIGNS = ["PADARIA", "FARMÁCIA", "BAR DO ZÉ", "AÇAÍ", "PASTEL", "SALÃO", "MERCADINHO", "LOTÉRICA", "CHAVEIRO", "SORVETES"];
 const AWNINGS = ["#FF4F5A", "#3EE6A1", "#FF9F1C", "#6EC6FF", "#C3B1E1"];
 const TRIMS = ["#FFFFFF", "#F4E1C1", "#2B2D42"];
-const BILLBOARDS = ["BUSÃO? SÓ AMANHÃ.", "PASTEL A 2 KM", "VENDE-SE GALINHA", "PAMONHA QUENTINHA", "CALDO DE CANA 300m", "FAZENDA BOA VISTA"];
 
 function makeBuilding(side, z, len) {
   const b = biomeAt(G.dist + z).id;
   const base = { side, z, len, gap: rand(0.3, 1.2) };
   if (b === "city" || (b === "beach" && side < 0)) {
     return Object.assign(base, { kind: "building", w: rand(2.5, 4), h: b === "beach" ? rand(3.4, 5.5) : rand(3.4, 9), color: pick(PAL.buildings),
-      seed: Math.random() * 1000, shop: Math.random() < 0.55, sign: pick(SIGNS), awning: pick(AWNINGS), trim: pick(TRIMS), tank: Math.random() < 0.4 });
+      seed: Math.random() * 1000, shop: Math.random() < 0.55, signI: randInt(0, 10), awning: pick(AWNINGS), trim: pick(TRIMS), tank: Math.random() < 0.4 });
   }
   return Object.assign(base, { kind: "empty" });
 }
@@ -580,7 +648,7 @@ function makeProp(side, z) {
   else if (kind === "tree" && b === "road") xo = rand(0.5, 9);
   else if (kind === "billboard") xo = 1.4;
   else if (kind === "pylon") xo = 1.3;
-  return { side, z, kind, xo, planter: b === "city", seed: Math.random(), color: pick(AWNINGS), text: pick(BILLBOARDS) };
+  return { side, z, kind, xo, planter: b === "city", seed: Math.random(), color: pick(AWNINGS), textI: randInt(0, 6) };
 }
 const props = [];
 const texPool = []; // canvases de fachada reaproveitados
@@ -624,8 +692,8 @@ function busEscape() {
   G.bonus += pts;
   sfx.door(); setTimeout(sfx.escape, 220); vibrate(50);
   slowMo(0.45, 0.4);
-  const line = close < 2.6 ? "POR UM FIO!!!" : pick(ESCAPE_LINES);
-  popText($("banner"), `${line}<small>${Math.max(1, Math.round(close))}m do busão · +${pts}</small>`);
+  const line = close < 2.6 ? T().byAHair : pick(T().escape);
+  popText($("banner"), `${line}<small>${T().fromBus(Math.max(1, Math.round(close)), pts)}</small>`);
   const bz = busBackZ();
   for (let i = 0; i < 18; i++) particles.push({ x: 0.55 + rand(-0.2, 0.2), y: 0.45, z: bz, vx: rand(-0.8, 0.8), vy: rand(0.2, 1.2), vz: rand(-4, -1.5),
     r: rand(0.18, 0.3), grow: 1.4, c: "#8E8EA0", alpha: 0.75, life: 1.4, max: 1.4, g: -0.4 });
@@ -695,7 +763,7 @@ function checkNearMiss(fromLane) {
     busPull(1.2 + 0.6 * Math.min(G.combo, 5)); // ousadia aproxima o busão
     slowMo(0.35, 0.25);
     sfx.near(G.combo); vibrate(15);
-    popText($("combo"), (G.combo > 1 ? `POR UM TRIZ! x${G.combo}` : "POR UM TRIZ!") + `<small>+${pts}</small>`);
+    popText($("combo"), (G.combo > 1 ? `${T().near} x${G.combo}` : T().near) + `<small>+${pts}</small>`);
     for (let i = 0; i < 14; i++) particles.push({ x: player.x, y: 1, z: 0.3, vx: rand(-3, 3), vy: rand(2, 6), vz: rand(-2, 3),
       r: rand(0.05, 0.1), c: [PAL.reward, PAL.player, "#FFFFFF"][i % 3], life: rand(0.5, 0.9), g: 12 });
     break;
@@ -737,7 +805,7 @@ function checkMissions() {
     const ok = m.lessIsBetter ? stats[id] <= target : stats[id] >= target;
     if (!ok) return id;
     save.coins += reward;
-    G.missionLog.push(`✅ ${m.text(target)} +${reward} 🎫`);
+    G.missionLog.push(`✅ ${T().missionText[id](target)} +${reward} 🎫`);
     save.mlevels[id] = (save.mlevels[id] || 0) + 1;
     const free = Object.keys(MISSION_POOL).filter((k) => !save.missions.includes(k));
     return pick(free);
@@ -747,13 +815,13 @@ function checkMissions() {
 function showGameOver() {
   if (G.state !== "dead") return;
   const gap = Math.max(1, Math.ceil(BUS.gap));
-  $("ovTitle").textContent = G.newRecord ? "NOVO RECORDE!" : `Faltaram ${gap}m pro busão!`;
-  $("ovCaption").textContent = G.newRecord ? `E mesmo assim faltaram ${gap}m pro busão.` : (G.killer ? G.killer.caption : "");
+  $("ovTitle").textContent = G.newRecord ? T().newRecord : T().missed(gap);
+  $("ovCaption").textContent = G.newRecord ? T().stillMissed(gap) : (G.killer ? T().captions[G.killer.id] : "");
   $("ovScore").textContent = score();
   $("stDist").textContent = Math.floor(G.dist) + "m";
   $("stNear").textContent = G.nears;
   $("stCombo").textContent = "x" + G.bestCombo;
-  $("stBus").textContent = isFinite(G.closestBus) ? G.closestBus.toFixed(1).replace(".", ",") + "m" : "—";
+  $("stBus").textContent = isFinite(G.closestBus) ? (LANG === "pt" ? G.closestBus.toFixed(1).replace(".", ",") : G.closestBus.toFixed(1)) + "m" : "—";
   $("stCoins").textContent = G.coins;
   $("ovMissions").innerHTML = G.missionLog.join("<br>");
   G.missionLog = [];
@@ -780,21 +848,19 @@ function revive() {
   countdown();
 }
 function share() {
-  const text = `Faltaram ${Math.max(1, Math.ceil(BUS.gap))}m pro busão 😭 Corri ${Math.floor(G.dist)}m no ATRASADO! ` +
-    `Duvido você chegar mais perto. #FaltouPoucoProBusão`;
+  const text = T().shareText(Math.max(1, Math.ceil(BUS.gap)), Math.floor(G.dist));
   try {
     if (window.AndroidBridge && window.AndroidBridge.share) return window.AndroidBridge.share(text);
     if (navigator.share) return navigator.share({ text }).catch(() => {});
-    navigator.clipboard.writeText(text).then(() => toast("Copiado! Cola no TikTok 😉"), () => toast(text));
+    navigator.clipboard.writeText(text).then(() => toast(T().copied), () => toast(text));
   } catch (e) { toast(text); }
 }
 
 // ================= Menus =================
 function refreshMenu() {
-  $("menuBest").textContent = save.best + "m";
-  $("menuClosest").textContent = save.closest === null ? "—" : String(save.closest).replace(".", ",") + "m";
-  $("menuCoins").textContent = save.coins;
-  $("menuPlaces").textContent = `${save.places.length}/${BIOMES.length}`;
+  const closest = save.closest === null ? "—" : (LANG === "pt" ? String(save.closest).replace(".", ",") : String(save.closest)) + "m";
+  $("menuStats").innerHTML = T().stats(save.best, closest, save.coins, `${save.places.length}/${BIOMES.length}`);
+  $("btnLang").textContent = LANG.toUpperCase();
   $("btnSound").textContent = save.muted ? "🔇" : "🔊";
 }
 
@@ -933,11 +999,11 @@ function renderShop() {
     const pc = document.createElement("canvas"); pc.width = 168; pc.height = 192;
     const c = pc.getContext("2d"); c.translate(84, 182); drawZe(c, 70, sk, 0.3, false, true);
     b.appendChild(pc);
-    b.insertAdjacentHTML("beforeend", `${sk.name}<span class="price">${sel ? "USANDO" : owned ? "USAR" : "🎫 " + sk.price}</span>`);
+    b.insertAdjacentHTML("beforeend", `${T().skins[sk.id]}<span class="price">${sel ? T().using : owned ? T().use : "🎫 " + sk.price}</span>`);
     b.addEventListener("click", () => {
       if (owned) { save.skin = sk.id; sfx.click(); }
-      else if (save.coins >= sk.price) { save.coins -= sk.price; save.owned.push(sk.id); save.skin = sk.id; sfx.buy(); toast(`${sk.name} desbloqueado!`); }
-      else { sfx.fail(); toast(`Faltam ${sk.price - save.coins} vales. Bora correr!`); return; }
+      else if (save.coins >= sk.price) { save.coins -= sk.price; save.owned.push(sk.id); save.skin = sk.id; sfx.buy(); toast(T().unlocked(T().skins[sk.id])); }
+      else { sfx.fail(); toast(T().need(sk.price - save.coins)); return; }
       persist(); renderShop(); refreshMenu();
     });
     grid.appendChild(b);
@@ -946,7 +1012,7 @@ function renderShop() {
 function renderMissions() {
   $("missionList").innerHTML = save.missions.map((id) => {
     const { m, target, reward } = missionInfo(id);
-    return `<li><span>${m.text(target)}</span><b>+${reward} 🎫</b></li>`;
+    return `<li><span>${T().missionText[id](target)}</span><b>+${reward} 🎫</b></li>`;
   }).join("");
 }
 function openPanel(id) { audio(); sfx.click(); if (id === "shop") renderShop(); else renderMissions(); $(id).classList.add("show"); }
@@ -958,6 +1024,7 @@ on("btnShop", () => openPanel("shop"));
 on("btnMissions", () => openPanel("missions"));
 on("btnShopClose", () => closePanel("shop"));
 on("btnMissionsClose", () => closePanel("missions"));
+on("btnLang", () => { LANG = save.lang = LANG === "pt" ? "en" : "pt"; persist(); applyLang(); refreshMenu(); sfx.click(); });
 on("btnSound", () => { save.muted = !save.muted; persist(); refreshMenu(); audio(); sfx.click(); });
 on("btnPause", () => pause());
 on("btnResume", () => { sfx.click(); countdown(); });
@@ -1016,7 +1083,7 @@ function update(dt, realDt) {
       G.biome = bio.id; G.visited.add(bio.id);
       const isNew = !save.places.includes(bio.id);
       if (isNew) { save.places.push(bio.id); persist(); sfx.record(); }
-      popText($("banner"), `${bio.icon} ${bio.name}${isNew ? "<small>Lugar novo descoberto!</small>" : ""}`);
+      popText($("banner"), `${bio.icon} ${T().biomes[bio.id]}${isNew ? `<small>${T().newPlace}</small>` : ""}`);
     }
     if (G.combo > 0 && G.runTime - G.lastNear > CFG.comboTimeout) G.combo = 0;
 
@@ -1423,8 +1490,8 @@ function drawWelcome(z, b) {
   faceZ(x - 1.4, x + 1.4, 1.75, 3.05, z - 0.06, shade("#FFFFFF", 1, fog));
   faceZ(x - 1.33, x + 1.33, 1.82, 2.98, z - 0.07, shade("#2E8B57", 1, fog));
   if (fog < 0.6) {
-    faceText(x, 2.68, z - 0.08, "BEM-VINDO À", 0.26, 2.4, "#FFFFFF");
-    faceText(x, 2.2, z - 0.08, b.name, 0.42, 2.5, "#FFFFFF");
+    faceText(x, 2.68, z - 0.08, T().welcome, 0.26, 2.4, "#FFFFFF");
+    faceText(x, 2.2, z - 0.08, T().biomes[b.id], 0.42, 2.5, "#FFFFFF");
   }
 }
 // Fachadas viram texturas (pintadas uma vez) e são coladas em fatias com perspectiva:
@@ -1462,9 +1529,9 @@ function buildFacade(b, night) {
     if (!night) R(0.3, 0.3 + (b.len - 0.6) * 0.3, 0.75, 1.15, "#5E7898");
     R(0.26, b.len - 0.26, 1.54, 2.02, "#FFFFFF");
     R(0.3, b.len - 0.3, 1.58, 1.98, b.awning);
-    const len = b.len - 0.6, size = Math.min(0.3, len / (b.sign.length * 0.62));
+    const sign = T().signs[b.signI], len = b.len - 0.6, size = Math.min(0.3, len / (sign.length * 0.62));
     c.font = `900 ${size * PPM}px sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "#FFFFFF";
-    c.fillText(b.sign, (b.len / 2) * PPM, (b.h - 1.78) * PPM);
+    c.fillText(sign, (b.len / 2) * PPM, (b.h - 1.78) * PPM);
   } else {
     R(b.len / 2 - 0.38, b.len / 2 + 0.38, 0.18, 1.3, frame);
     R(b.len / 2 - 0.32, b.len / 2 + 0.32, 0.18, 1.22, "#7B4A2A");
@@ -1623,7 +1690,7 @@ function drawProp(p) {
       faceZ(x - 0.55, x + 0.55, 0.5, 0.58, z - 0.67, shade("#E3C27A", 1, fog));
       box(x, 1.1, z, 1.75, 0.32, 1.75, "#E3C27A");
       faceZ(x - 0.87, x + 0.87, 1.02, 1.12, z - 0.88, shade("#C9A75E", 1, fog));
-      if (fog < 0.5) faceText(x, 1.26, z - 0.88, "COCO GELADO", 0.17, 1.5, "#2E8B57");
+      if (fog < 0.5) faceText(x, 1.26, z - 0.88, T().kiosk, 0.17, 1.5, "#2E8B57");
       break;
     case "lifeguard":
       shadow(x, z, 1.2, 1.2);
@@ -1673,7 +1740,7 @@ function drawProp(p) {
       box(x - 0.9, 0, z, 0.12, 2.0, 0.12, "#7B4A2A"); box(x + 0.9, 0, z, 0.12, 2.0, 0.12, "#7B4A2A");
       faceZ(x - 1.3, x + 1.3, 1.8, 3.1, z - 0.07, shade(PAL.ink, 1, fog));
       faceZ(x - 1.22, x + 1.22, 1.88, 3.02, z - 0.08, shade("#FFF7E0", 1, fog));
-      if (fog < 0.6) faceText(x, 2.45, z - 0.09, p.text, 0.3, 2.3, "#E8434E");
+      if (fog < 0.6) faceText(x, 2.45, z - 0.09, T().billboards[p.textI], 0.3, 2.3, "#E8434E");
       break;
   }
 }
@@ -1802,7 +1869,7 @@ function drawBus() {
   const pl = P(0, by + 2.4, zf), s = scaleAt(zf) * KX;
   if (s > 18) {
     ctx.font = `900 ${0.16 * s}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillStyle = "#FFB347"; ctx.fillText("171 · CENTRO", pl[0], pl[1]); ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#FFB347"; ctx.fillText(T().busSign, pl[0], pl[1]); ctx.textBaseline = "alphabetic";
   }
 }
 
@@ -1904,6 +1971,8 @@ function frame(now) {
   if (!hidden) { const t0 = performance.now(); update(realDt * G.timeScale * (window.__ts || 1), realDt); render(); window.__work = performance.now() - t0; }
   requestAnimationFrame(frame);
 }
+LANG = detectLang();
+applyLang();
 refreshMenu();
 requestAnimationFrame(frame);
 

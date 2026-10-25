@@ -4,13 +4,13 @@ Jogo mobile hyper-casual de **um toque**: o Zé está atrasado, de pijama e grav
 
 - 📄 **Game Design Document completo:** [`docs/GDD.md`](docs/GDD.md)
 - 💻 **Protótipo (Unity C#):** [`Unity/Assets/Scripts`](Unity/Assets/Scripts)
-- 📱 **APK jogável (Android 7+):** [`dist/atrasado-1.0.0.apk`](dist/atrasado-1.0.0.apk)
-- 🏪 **Publicação na Play Store:** [`store/ficha-play-store.md`](store/ficha-play-store.md) — pacote `dist/atrasado-1.0.0.aab`, ícone, destaque, capturas e política de privacidade
+- 📱 **APK jogável (Android 7+):** [`dist/atrasado-1.1.0.apk`](dist/atrasado-1.1.0.apk)
+- 🏪 **Publicação na Play Store:** [`store/ficha-play-store.md`](store/ficha-play-store.md) — pacote `dist/atrasado-1.1.0.aab`, ícone, destaque, capturas e política de privacidade
 - 🌐 **Versão HTML5 (mesmas mecânicas):** [`web/index.html`](web/index.html) — abra no navegador do celular
 
 ## Testar no celular
 
-Baixe `dist/atrasado-1.0.0.apk` no Android, toque para instalar e permita "instalar apps desconhecidos" quando pedir.
+Baixe `dist/atrasado-1.1.0.apk` no Android, toque para instalar e permita "instalar apps desconhecidos" quando pedir.
 
 ## Gerar o APK de novo
 

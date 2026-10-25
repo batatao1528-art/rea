@@ -4,14 +4,15 @@
 
 | O quê | Arquivo | Onde usar no Play Console |
 |---|---|---|
-| Pacote do app (envio) | `dist/atrasado-1.0.0.aab` | Teste / Produção → Criar versão |
-| APK assinado (só para testar no seu celular) | `dist/atrasado-1.0.0.apk` | — |
+| Pacote do app (envio) | `dist/atrasado-1.1.0.aab` | Teste / Produção → Criar versão |
+| APK assinado (só para testar no seu celular) | `dist/atrasado-1.1.0.apk` | — |
+| Gráfico de destaque e capturas **em inglês** | `store/en/feature-1024x500.png`, `store/en/screenshots/*.png` | Ficha em inglês (veja abaixo) |
 | Ícone 512×512 | `store/icone-512.png` | Presença na loja → Ficha principal |
 | Gráfico de destaque 1024×500 | `store/destaque-1024x500.png` | Ficha principal |
 | Capturas de tela (1080×1920) | `store/screenshots/*.png` | Ficha principal → Smartphone |
 | Política de privacidade | `store/politica-de-privacidade.html` | Precisa estar num link público (veja abaixo) |
 
-Dados técnicos: pacote `com.atrasado.game` · versão 1.0.0 (código 9) · Android 7.0+ (API 24) · target API 36 (Android 16) · sem anúncios, sem compras, sem internet.
+Dados técnicos: pacote `com.atrasado.game` · versão 1.1.0 (código 10) · Android 7.0+ (API 24) · target API 36 (Android 16) · sem anúncios, sem compras, sem internet.
 
 > ⚠️ O nome do pacote (`com.atrasado.game`) **não pode ser mudado depois de publicado**. Se esse nome já estiver em uso na Play, troque `applicationId` em `android/app/build.gradle` (ex.: `com.seunome.atrasado`) e gere o `.aab` de novo.
 
@@ -46,6 +47,39 @@ Sem cadastro. Sem internet. Sem anúncios. Só você, um toque e o busão que nu
 
 **Categoria:** Jogos → Casual (alternativa: Arcade)
 **Tags sugeridas:** Casual, Arcade, Corrida infinita, Um toque, Offline
+
+---
+
+## Store listing (English — United States)
+
+O jogo detecta o idioma do celular: português para quem usa o aparelho em português, inglês para todo o resto (dá pra trocar no botão PT/EN do menu). O nome do app no celular também muda: **ATRASADO!** em português, **Running Late!** nos demais idiomas.
+
+No Play Console: *Presença na loja → Ficha principal da loja → Gerenciar traduções → Adicionar suas próprias traduções → Inglês (Estados Unidos)*. Cole os textos abaixo e, ainda na ficha em inglês, envie `store/en/feature-1024x500.png` e as capturas de `store/en/screenshots/` (o ícone pode ser o mesmo).
+
+**App name** (max 30): `Running Late! Catch the Bus`
+
+**Short description** (max 80):
+`One tap to switch sidewalks. The bus gets so close... then leaves. Always! 🚌`
+
+**Full description:**
+
+```
+You're RUNNING LATE. In pajamas, crooked tie, coffee in hand. And the bus is pulling away.
+
+ONE TAP: tap anywhere to switch sidewalks and dodge the chaos of the city — grandma and her shopping cart, a wiener dog, open manholes, piles of deliveries and e-scooters coming the wrong way.
+
+NEAR MISS! Switch at the very last second for slow motion, combos and way more points. The bolder you play, the closer the bus gets...
+
+THE BUS NEVER WAITS. It gets sooo close, the brake lights come on, you think you've made it... and it drives off. Every. Single. Time. How far can you go?
+
+🏙️ Run through Downtown, 🏖️ along the beachfront on a fish-tile promenade, 🌉 across the bridge, all the way to the 🌾 country road.
+🌅 Day, sunset and night change as you run.
+👕 Unlock outfits: Fisherman Zé, Dino, Astronaut, Executive, Carnival and the legendary Golden Zé.
+🎯 Rotating missions and tickets to spend in the shop.
+📤 Share how close you got to the bus and challenge your friends.
+
+No sign-up. No internet. No ads. Just you, one tap and a bus that never stops.
+```
 
 ---
 
