@@ -8,6 +8,7 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.View;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -32,6 +33,12 @@ public class MainActivity extends Activity {
         setContentView(web);
         hideSystemBars();
         web.loadUrl("file:///android_asset/index.html");
+
+        // Android 13+ (e obrigatório no Android 16): o voltar chega por callback, não por onBackPressed.
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
+        }
     }
 
     @Override
@@ -41,13 +48,15 @@ public class MainActivity extends Activity {
     }
 
     /** Botão voltar: o jogo decide (pausar, fechar painel, ir ao menu) ou pede para sair. */
-    @Override
-    @SuppressWarnings("deprecation")
-    public void onBackPressed() {
+    private void handleBack() {
         web.evaluateJavascript("window.atrasadoBack ? atrasadoBack() : 'exit'", value -> {
             if ("\"exit\"".equals(value)) finish();
         });
     }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() { handleBack(); } // Android 12 ou anterior
 
     /** Ponte para o JS: compartilhar e vibrar com APIs nativas. */
     private class Bridge {

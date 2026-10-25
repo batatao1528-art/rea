@@ -1,15 +1,39 @@
 plugins { id "com.android.application" }
 
+// Chave de upload da Play Store: fica FORA do git, em android/keystore.properties
+// (storeFile, storePassword, keyAlias, keyPassword). Sem ela, o release sai sem assinatura.
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file("keystore.properties")
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
 android {
     namespace "com.atrasado.game"
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.atrasado.game"
         minSdk 24
-        targetSdk 34
-        versionCode 8
-        versionName "1.6"
+        targetSdk 36
+        versionCode 9
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystoreProps["storeFile"])
+                storePassword keystoreProps["storePassword"]
+                keyAlias keystoreProps["keyAlias"]
+                keyPassword keystoreProps["keyPassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystoreFile.exists()) signingConfig signingConfigs.release
+        }
     }
 
     // O jogo é o mesmo HTML5 de web/index.html, empacotado como asset (roda offline).

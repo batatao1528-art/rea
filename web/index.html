@@ -95,9 +95,6 @@
   .missions li b { color: #1fae74; white-space: nowrap; }
   .card .row { margin-top: 10px; }
 
-  #ad { position: fixed; inset: 0; background: #000; display: none; align-items: center; justify-content: center; flex-direction: column;
-    font-size: 20px; font-weight: 800; z-index: 30; pointer-events: auto; }
-  #ad.show { display: flex; }
 </style>
 </head>
 <body>
@@ -140,8 +137,7 @@
   </div>
   <div id="ovMissions"></div>
   <div class="row">
-    <button id="btnContinue">▶ Continuar (vídeo)</button>
-    <button id="btnDouble" class="gold">🎫 x2 (vídeo)</button>
+    <button id="btnContinue">▶ Continuar (1x)</button>
   </div>
   <div class="row">
     <button id="btnShare" class="alt">📤 Compartilhar</button>
@@ -176,7 +172,6 @@
   </div>
 </div>
 
-<div id="ad"><div>📺 Anúncio simulado</div><div id="adCount" style="font-size:48px;margin-top:12px">3</div></div>
 
 <script>
 (() => {
@@ -765,7 +760,6 @@ function showGameOver() {
   const toBest = save.best - G.dist;
   const close = BUS.gap < 15 || toBest < 150 || G.newRecord;
   $("btnContinue").classList.toggle("hidden", G.usedRevive || !close);
-  $("btnDouble").classList.toggle("hidden", G.doubled || G.coins < 3);
   setScreen("over");
   if (G.newRecord) {
     sfx.record();
@@ -774,33 +768,16 @@ function showGameOver() {
   }
 }
 
-function showAd(done) {
-  const ad = $("ad"); ad.classList.add("show");
-  let n = 3; $("adCount").textContent = n;
-  const iv = setInterval(() => {
-    n--; $("adCount").textContent = n;
-    if (n > 0) return;
-    clearInterval(iv); ad.classList.remove("show"); done();
-  }, 1000);
-}
+// Versão 1.0 sem anúncios: "Continuar" é grátis, uma vez por partida.
+// Para monetizar, chame o anúncio recompensado (ex.: AdMob) aqui e só então reviva.
 function revive() {
   if (G.state !== "dead" || G.usedRevive) return;
-  showAd(() => {
-    G.usedRevive = true;
-    for (let i = obstacles.length - 1; i >= 0; i--) if (obstacles[i].z - obstacles[i].type.len / 2 < 25) despawn(i);
-    for (let i = coins.length - 1; i >= 0; i--) if (coins[i].z < 3) coins.splice(i, 1);
-    Object.assign(player, { dead: false, holeZ: null, dy: 0, vy: 0, dz: 0, vz: 0, rot: 0, vrot: 0, x: laneX(player.lane), prog: 1 });
-    particles.length = 0; G.timeScale = 1; G.slowUntil = 0; G.combo = 0;
-    countdown();
-  });
-}
-function doubleCoins() {
-  if (G.doubled || G.state !== "dead") return;
-  showAd(() => {
-    G.doubled = true; save.coins += G.coins; persist();
-    $("btnDouble").classList.add("hidden");
-    sfx.buy(); toast(`+${G.coins} 🎫 vales!`);
-  });
+  G.usedRevive = true;
+  for (let i = obstacles.length - 1; i >= 0; i--) if (obstacles[i].z - obstacles[i].type.len / 2 < 25) despawn(i);
+  for (let i = coins.length - 1; i >= 0; i--) if (coins[i].z < 3) coins.splice(i, 1);
+  Object.assign(player, { dead: false, holeZ: null, dy: 0, vy: 0, dz: 0, vz: 0, rot: 0, vrot: 0, x: laneX(player.lane), prog: 1 });
+  particles.length = 0; G.timeScale = 1; G.slowUntil = 0; G.combo = 0;
+  countdown();
 }
 function share() {
   const text = `Faltaram ${Math.max(1, Math.ceil(BUS.gap))}m pro busão 😭 Corri ${Math.floor(G.dist)}m no ATRASADO! ` +
@@ -986,13 +963,11 @@ on("btnPause", () => pause());
 on("btnResume", () => { sfx.click(); countdown(); });
 on("btnPauseHome", () => { sfx.click(); goMenu(); });
 on("btnContinue", revive);
-on("btnDouble", doubleCoins);
 on("btnShare", share);
 on("btnHome", () => { sfx.click(); goMenu(); });
 
 // Botão "voltar" do Android (chamado pela casca nativa). Retorna "exit" para fechar o app.
 window.atrasadoBack = () => {
-  if ($("ad").classList.contains("show")) return "ok";
   if ($("shop").classList.contains("show")) { closePanel("shop"); return "ok"; }
   if ($("missions").classList.contains("show")) { closePanel("missions"); return "ok"; }
   if (G.state === "playing" || G.state === "countdown") { pause(); return "ok"; }
@@ -1003,13 +978,13 @@ window.atrasadoBack = () => {
 // ================= Input: 1 toque =================
 function onTap() {
   audio();
-  if ($("ad").classList.contains("show") || panelOpen()) return;
+  if (panelOpen()) return;
   if (G.state === "menu") startRun();
   else if (G.state === "playing") switchLane();
   else if (G.state === "dead" && performance.now() - G.deathAt > CFG.restartLockout * 1000 + 650) restart();
 }
 window.addEventListener("pointerdown", (e) => {
-  if (e.target.closest("button, .panel, #ad")) return;
+  if (e.target.closest("button, .panel")) return;
   e.preventDefault(); onTap();
 }, { passive: false });
 window.addEventListener("keydown", (e) => {
