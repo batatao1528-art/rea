@@ -1,0 +1,14 @@
+{
+  "name": "controle-de-fichas",
+  "version": "1.0.0",
+  "description": "Controle de fichas para jogos de poker presenciais",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
