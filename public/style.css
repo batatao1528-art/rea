@@ -11,6 +11,7 @@
   --danger: #e5484d;
   --ok: #30a46c;
   --radius: 12px;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -29,9 +30,11 @@ h2 { font-size: 1.15rem; }
 h3 { font-size: 1rem; color: var(--muted); font-weight: 600; }
 
 .topbar {
-  position: sticky; top: 0; z-index: 5;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 10px 16px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
   background: var(--felt-dark);
   border-bottom: 1px solid #0a2a1c;
 }
@@ -39,7 +42,11 @@ h3 { font-size: 1rem; color: var(--muted); font-weight: 600; }
 #userbox { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
 #userbox .bal { color: var(--accent); font-weight: 700; white-space: nowrap; }
 
-main { max-width: 960px; margin: 0 auto; padding: 16px; }
+main {
+  max-width: 960px; margin: 0 auto; padding-block: 16px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
 
 nav.tabs { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; }
 nav.tabs a {
@@ -129,11 +136,11 @@ table.list td.num, table.list th.num { text-align: right; white-space: nowrap; }
   background: #222; color: #fff; border: 1px solid var(--border);
   transition: transform .2s ease; z-index: 10;
 }
+#toast:not(.show) { visibility: hidden; }
 #toast.show { transform: translateX(-50%) translateY(0); }
 #toast.error { background: #4a1517; border-color: var(--danger); }
 
 @media (max-width: 560px) {
-  main { padding: 12px; }
   .felt { border-radius: 40px; border-width: 6px; }
   #userbox .who { display: none; }
 }
@@ -141,3 +148,9 @@ table.list td.num, table.list th.num { text-align: right; white-space: nowrap; }
 .item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .item:last-child { border-bottom: 0; }
 .item .num { text-align: right; white-space: nowrap; }
+
+.modal {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+  padding: 16px; background: rgba(0, 0, 0, .6);
+}
+.modal .card { width: 100%; max-width: 380px; margin: 0; }

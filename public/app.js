@@ -48,7 +48,43 @@ async function act(path, body, success) {
 }
 
 const val = (id) => document.getElementById(id)?.value.trim() ?? '';
-const route = () => (location.hash.replace(/^#/, '') || '/');
+const hashRoute = () => (location.hash.replace(/^#/, '') || '/');
+let currentRoute = hashRoute();
+const route = () => currentRoute;
+
+function go(path) {
+  currentRoute = path;
+  try { history.pushState(null, '', '#' + path); } catch { /* sem histórico disponível */ }
+  render();
+  window.scrollTo(0, 0);
+}
+
+// Caixa de confirmação própria (confirm/prompt do navegador nem sempre funcionam).
+function ask(message, { input, okLabel = 'Confirmar', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const box = document.createElement('div');
+    box.className = 'modal';
+    box.innerHTML = `
+      <form class="card" role="dialog" aria-modal="true">
+        <p>${esc(message)}</p>
+        ${input === undefined ? '' : `<input id="ask-input" maxlength="100" value="${esc(input)}">`}
+        <div class="row" style="justify-content:flex-end;margin-top:12px">
+          <button type="button" class="ghost" data-close>Cancelar</button>
+          <button type="submit" class="${danger ? 'danger' : 'primary'}">${esc(okLabel)}</button>
+        </div>
+      </form>`;
+    const done = (value) => { box.remove(); resolve(value); };
+    box.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      done(input === undefined ? true : box.querySelector('#ask-input').value.trim());
+    });
+    box.querySelector('[data-close]').addEventListener('click', () => done(input === undefined ? false : null));
+    box.addEventListener('click', (e) => { if (e.target === box) done(input === undefined ? false : null); });
+    document.body.appendChild(box);
+    (box.querySelector('#ask-input') || box.querySelector('[type=submit]')).focus();
+  });
+}
 
 // ---------- Carregamento e tempo real ----------
 
@@ -442,6 +478,12 @@ document.addEventListener('submit', async (e) => {
 });
 
 document.addEventListener('click', async (e) => {
+  const link = e.target.closest('a[href^="#/"]');
+  if (link) {
+    e.preventDefault();
+    go(link.getAttribute('href').slice(1));
+    return;
+  }
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const d = el.dataset;
@@ -454,7 +496,7 @@ document.addEventListener('click', async (e) => {
       break;
     case 'logout':
       await act('/logout', {});
-      location.hash = '#/';
+      go('/');
       break;
     case 'cancel-request':
       await act(`/requests/${d.id}/cancel`, {}, 'Pedido cancelado.');
@@ -466,8 +508,8 @@ document.addEventListener('click', async (e) => {
       document.getElementById('raise-to').value = d.value;
       break;
     case 'leave':
-      if (confirm('Sair da mesa? Suas fichas voltam para a carteira.')) {
-        if (await act(`/tables/${d.id}/leave`, {}, 'Fichas devolvidas para a carteira.')) location.hash = '#/';
+      if (await ask('Sair da mesa? Suas fichas voltam para a carteira.', { okLabel: 'Sair da mesa' })) {
+        if (await act(`/tables/${d.id}/leave`, {}, 'Fichas devolvidas para a carteira.')) go('/');
       }
       break;
     case 'dealer':
@@ -483,12 +525,12 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'kick':
-      if (confirm(`Remover ${d.name} da mesa? O stack volta para a carteira dele(a).`)) {
+      if (await ask(`Remover ${d.name} da mesa? O stack volta para a carteira dele(a).`, { okLabel: 'Remover', danger: true })) {
         await act(`/admin/tables/${tableId}/dealer`, { action: 'kick', userId: Number(d.user) });
       }
       break;
     case 'close-table':
-      if (confirm('Fechar esta mesa?') && await act(`/admin/tables/${d.id}/close`, {}, 'Mesa fechada.')) location.hash = '#/';
+      if (await ask('Fechar esta mesa?', { okLabel: 'Fechar mesa', danger: true }) && await act(`/admin/tables/${d.id}/close`, {}, 'Mesa fechada.')) go('/');
       break;
     case 'resolve':
       await act(`/admin/requests/${d.id}`, { approve: d.approve === '1' }, d.approve === '1' ? 'Confirmado.' : 'Pedido recusado.');
@@ -496,7 +538,8 @@ document.addEventListener('click', async (e) => {
     case 'adjust': {
       const amount = Number(val(`adj-${d.id}`));
       if (!amount) return toast('Informe quantas fichas (negativo para debitar).', true);
-      const note = prompt('Motivo do ajuste:', amount > 0 ? 'Dinheiro recebido em mãos' : 'Pagamento em mãos');
+      const verb = amount > 0 ? `Creditar ${fmt(amount)}` : `Debitar ${fmt(-amount)}`;
+      const note = await ask(`${verb} fichas. Motivo do ajuste:`, { input: amount > 0 ? 'Dinheiro recebido em mãos' : 'Pagamento em mãos', okLabel: verb });
       if (note === null) return;
       if (await act(`/admin/users/${d.id}/adjust`, { chips: amount, note }, 'Saldo ajustado.')) document.getElementById(`adj-${d.id}`).value = '';
       break;
@@ -510,5 +553,5 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-window.addEventListener('hashchange', () => { if (state) render(); window.scrollTo(0, 0); });
+window.addEventListener('popstate', () => { currentRoute = hashRoute(); if (state) render(); });
 refresh();
