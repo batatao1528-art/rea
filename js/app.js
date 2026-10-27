@@ -48,15 +48,34 @@
     }
   }
 
+  var position = 'btn';
+  var POSITION_SHORT = { utg: 'UTG', mp: 'MP', co: 'CO', btn: 'BTN', sb: 'SB', bb: 'BB' };
+
   function buildPositions() {
-    var sel = $('position');
+    var group = $('position');
     Object.keys(P.POSITIONS).forEach(function (k) {
-      var opt = document.createElement('option');
-      opt.value = k;
-      opt.textContent = P.POSITIONS[k].label;
-      sel.appendChild(opt);
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.position = k;
+      b.title = P.POSITIONS[k].label;
+      b.setAttribute('role', 'radio');
+      b.textContent = POSITION_SHORT[k];
+      b.addEventListener('click', function () {
+        position = k;
+        renderPositions();
+        scheduleAnalysis();
+      });
+      group.appendChild(b);
     });
-    sel.value = 'btn';
+    renderPositions();
+  }
+
+  function renderPositions() {
+    document.querySelectorAll('#position button').forEach(function (b) {
+      var on = b.dataset.position === position;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on);
+    });
   }
 
   function onDeckClick(e) {
@@ -131,7 +150,7 @@
     var eq = P.equity(hole, board, opponents, ITERATIONS);
     var rec = P.recommend({
       hole: hole, equity: eq.equity, opponents: opponents, street: street,
-      position: $('position').value, pot: pot, toCall: toCall
+      position: position, pot: pot, toCall: toCall
     });
 
     var action = ACTIONS[rec.action];
@@ -191,9 +210,18 @@
     $('to-call').value = 0;
     render();
   });
-  ['opponents', 'position', 'pot', 'to-call'].forEach(function (id) {
+  ['opponents', 'pot', 'to-call'].forEach(function (id) {
     $(id).addEventListener('input', scheduleAnalysis);
   });
+
+  // Modo compacto: usado dentro da janela flutuante do app Android.
+  if (/[?&]compact\b/.test(location.search)) document.body.classList.add('compact');
+
+  // Dentro do APK, o Android expõe window.Android para abrir a janela flutuante.
+  if (window.Android && window.Android.openOverlay && !document.body.classList.contains('compact')) {
+    $('overlay').hidden = false;
+    $('overlay').addEventListener('click', function () { window.Android.openOverlay(); });
+  }
 
   buildSlots();
   buildDeck();

@@ -35,9 +35,9 @@
       <label>Oponentes na mão
         <input type="number" id="opponents" min="1" max="9" value="2" inputmode="numeric">
       </label>
-      <label>Sua posição
-        <select id="position"></select>
-      </label>
+      <div class="field wide">Sua posição
+        <div class="positions" id="position" role="radiogroup" aria-label="Sua posição"></div>
+      </div>
       <label>Pote atual
         <input type="number" id="pot" min="0" step="any" value="0" inputmode="decimal">
       </label>
@@ -45,6 +45,7 @@
         <input type="number" id="to-call" min="0" step="any" value="0" inputmode="decimal">
       </label>
       <button type="button" id="clear" class="secondary">Nova mão</button>
+      <button type="button" id="overlay" class="secondary overlay-btn" hidden>Abrir janela flutuante</button>
     </section>
 
     <section class="result" id="result" hidden>

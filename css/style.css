@@ -62,7 +62,21 @@ section { background: var(--panel); border-radius: 14px; padding: 14px; margin-b
 .deck .card.used { opacity: 0.2; }
 
 .settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: end; }
+.settings label, .settings .field { min-width: 0; }
+.settings input { width: 100%; min-width: 0; }
+.positions button { min-width: 0; }
 .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.settings .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.settings .wide { grid-column: 1 / -1; }
+.positions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.positions button {
+  font: inherit; font-weight: 600; padding: 8px 0; border-radius: 8px; cursor: pointer;
+  border: 1px solid #2e6b55; background: var(--felt-dark); color: var(--text);
+}
+.positions button.active { background: var(--accent); color: #1b1b1b; border-color: var(--accent); }
+.overlay-btn { background: #6b4e0f; }
+.overlay-btn[hidden] { display: none; }
+
 input, select, button.secondary {
   font: inherit;
   padding: 9px 10px;
@@ -111,3 +125,29 @@ footer { color: var(--muted); font-size: 0.8rem; padding-bottom: 24px; text-alig
   .deck .card { font-size: 0.7rem; height: 38px; border-radius: 5px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Janela flutuante: tudo menor e o resultado logo abaixo das cartas escolhidas. */
+body.compact { font-size: 13px; }
+body.compact header, body.compact footer, body.compact .hint, body.compact details,
+body.compact .reasons, body.compact #draws:empty { display: none; }
+body.compact main { display: flex; flex-direction: column; padding: 0 6px; }
+body.compact section { padding: 8px; margin-bottom: 6px; border-radius: 10px; }
+body.compact .table { order: 1; grid-template-columns: auto 1fr; gap: 8px; }
+body.compact .result { order: 2; }
+body.compact .deck { order: 3; gap: 3px; }
+body.compact .settings { order: 4; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+body.compact h2 { font-size: 0.75rem; margin-bottom: 4px; }
+body.compact .slot { width: 30px; height: 42px; font-size: 0.8rem; }
+body.compact .deck-row { gap: 2px; }
+body.compact .deck .card { height: 30px; font-size: 0.62rem; border-radius: 4px; }
+body.compact .verdict { font-size: 1.15rem; padding: 6px; }
+body.compact .stats { grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0; }
+body.compact .stat { padding: 4px 2px; }
+body.compact .stat .value { font-size: 0.85rem; }
+body.compact .stat .label { font-size: 0.6rem; }
+body.compact .made { margin: 6px 0 0; }
+body.compact input, body.compact button.secondary { padding: 6px; }
+body.compact .positions button { padding: 5px 0; font-size: 0.75rem; }
+body.compact #clear { grid-column: 1 / -1; }
+body.compact .settings .wide { order: -1; }
+body.compact .settings label { font-size: 0.7rem; }

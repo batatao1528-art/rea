@@ -10,6 +10,20 @@ App web para Texas Hold'em que analisa sua mão e diz se vale continuar: **aumen
 
 O app funciona 100% offline. Requer Android 8.0 ou mais novo.
 
+### Janela flutuante
+
+Toque em **Abrir janela flutuante** (no fim da tela do app). Na primeira vez o Android pede para
+ativar **"Sobrepor a outros apps"** para o Assistente de Poker: ative e volte ao app.
+
+- Aparece um **balão** que fica por cima de qualquer app. Arraste para onde quiser.
+- Toque no balão para abrir o **painel compacto**; arraste pela barra de título para movê-lo.
+- **—** (ou o botão voltar) minimiza de novo para o balão; **✕** fecha. Também dá para fechar pela notificação.
+
+As cartas são marcadas por você: o app **não lê a tela** do jogo. A maioria dos sites de poker
+online (PokerStars, GGPoker etc.) proíbe ferramentas de assistência em tempo real durante mãos
+valendo dinheiro e pode banir a conta — use em mesas de fichas grátis, contra bots, para treinar ou
+para revisar mãos.
+
 ### Gerar o APK de novo
 
 ```
