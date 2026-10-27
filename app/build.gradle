@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Chave de assinatura do release: crie keystore.properties na raiz (fora do git) com
+// storeFile, storePassword, keyAlias e keyPassword. Use sempre a mesma chave, senão o
+// Android não deixa instalar a versão nova por cima da antiga.
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
+android {
+    namespace 'br.poker.assistente'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'br.poker.assistente'
+        minSdk 26
+        targetSdk 35
+        versionCode 3
+        versionName '1.2'
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+}

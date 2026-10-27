@@ -2,7 +2,6 @@ package br.poker.assistente;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -32,7 +31,7 @@ public final class OverlayResize implements View.OnTouchListener {
         this.params = params;
     }
 
-    /** Chamado pelo OverlayService depois de montar o painel e seus parâmetros de janela. */
+    /** Restaura o tamanho salvo e acrescenta a barra de redimensionar na base do painel. */
     public static void install(Context context, LinearLayout panel, WindowManager wm, WindowManager.LayoutParams params) {
         OverlayResize r = new OverlayResize(context, panel, wm, params);
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);

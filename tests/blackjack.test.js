@@ -1,6 +1,6 @@
 // Testes da lógica do 21: node tests/blackjack.test.js
 var assert = require('assert');
-var B = require('../www/js/blackjack.js');
+var B = require('../app/src/main/assets/www/js/blackjack.js');
 
 function act(cards, up, opts) {
   opts = opts || {};
