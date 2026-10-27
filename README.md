@@ -2,9 +2,36 @@
 
 App web para Texas Hold'em que analisa sua mão e diz se vale continuar: **aumentar, pagar, passar ou desistir**.
 
-## Como usar
+## Instalar no Android (APK)
 
-Abra o `index.html` no navegador (funciona no celular e no PC, sem instalar nada).
+1. No celular, abra o arquivo [`apk/assistente-poker.apk`](apk/assistente-poker.apk) aqui no GitHub e toque em **Download** (ou "View raw").
+2. Abra o arquivo baixado. O Android vai pedir para **permitir instalar apps desta fonte** (o navegador ou o gerenciador de arquivos): permita.
+3. Toque em **Instalar**. Se aparecer o aviso do Play Protect, toque em "Instalar mesmo assim" — é normal para apps que não vêm da Play Store.
+
+O app funciona 100% offline. Requer Android 8.0 ou mais novo.
+
+### Gerar o APK de novo
+
+```
+cd android
+./gradlew assembleRelease
+# saída: android/app/build/outputs/apk/release/app-release.apk
+```
+
+Precisa do JDK 17+ e do Android SDK (`ANDROID_HOME`). O APK é assinado com a chave
+`android/app/assistente-poker.keystore`, que fica no repositório para que toda versão nova
+instale por cima da anterior. Como a chave é pública, ela serve só para uso pessoal — para
+publicar na Play Store, gere uma chave própria e mantenha-a fora do repositório.
+
+Ao fazer push na branch `main`, o GitHub Actions (`.github/workflows/apk.yml`) roda os testes,
+compila o APK e publica na release **latest** do repositório.
+
+## Usar no navegador
+
+Abra o `index.html` no navegador. Se o site estiver publicado (por exemplo no GitHub Pages),
+o Chrome oferece **"Instalar app"** / "Adicionar à tela inicial" e ele passa a funcionar offline.
+
+## Como usar
 
 1. Toque em duas cartas do baralho para montar **sua mão**.
 2. Conforme o jogo anda, adicione as cartas da **mesa** (flop, turn, river).

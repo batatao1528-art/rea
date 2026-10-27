@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Copia o app web (index.html, css/, js/) da raiz do repositório para os assets do APK.
+def webAssetsDir = layout.buildDirectory.dir('generated/webAssets')
+def copyWebApp = tasks.register('copyWebApp', Sync) {
+    from(rootProject.file('..')) {
+        include 'index.html', 'css/**', 'js/**', 'icons/**'
+    }
+    into webAssetsDir.map { it.dir('www') }
+}
+
+android {
+    namespace 'br.poker.assistente'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'br.poker.assistente'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // Chave fixa versionada no repositório: assim qualquer build (local ou CI)
+        // gera um APK com a mesma assinatura e dá para atualizar o app sem desinstalar.
+        shared {
+            storeFile file('assistente-poker.keystore')
+            storePassword 'assistente-poker'
+            keyAlias 'assistente-poker'
+            keyPassword 'assistente-poker'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.shared
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.shared
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += webAssetsDir
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.named('preBuild') { dependsOn copyWebApp }

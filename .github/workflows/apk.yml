@@ -1,0 +1,51 @@
+name: Gerar APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Testes
+        run: node test/poker.test.js
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Renomear APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk assistente-poker.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assistente-poker-apk
+          path: assistente-poker.apk
+
+      # Publica (ou substitui) o APK na release "latest" para baixar direto do celular.
+      - name: Publicar na release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest assistente-poker.apk \
+            --title "Assistente de Poker (última versão)" \
+            --notes "Baixe o assistente-poker.apk no celular Android e abra para instalar."
