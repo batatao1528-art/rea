@@ -13,10 +13,15 @@
 <body>
   <header>
     <h1>♠ Assistente de Poker</h1>
-    <p class="sub">Texas Hold'em · escolha suas cartas e veja se vale continuar</p>
+    <nav class="modes" role="tablist" aria-label="Jogo">
+      <button type="button" role="tab" data-mode="poker">Poker</button>
+      <button type="button" role="tab" data-mode="bj">21</button>
+    </nav>
+    <p class="sub" data-for="poker">Texas Hold'em · escolha suas cartas e veja se vale continuar</p>
+    <p class="sub" data-for="bj" hidden>21 (blackjack) · marque suas cartas e a do dealer e veja se pede carta ou para</p>
   </header>
 
-  <main>
+  <main data-for="poker">
     <section class="table">
       <div class="slots-group">
         <h2>Sua mão</h2>
@@ -67,13 +72,56 @@
     </section>
   </main>
 
-  <footer>
+  <main data-for="bj" hidden>
+    <section class="table bj-table">
+      <div class="slots-group">
+        <h2>Sua mão <span class="street" id="bj-total">—</span></h2>
+        <div class="slots" id="bj-hand"></div>
+      </div>
+      <div class="slots-group">
+        <h2>Dealer</h2>
+        <div class="slots" id="bj-dealer"></div>
+      </div>
+      <p class="hint">Toque nos valores na ordem em que saem: suas duas cartas, a do dealer e depois as cartas que você pedir. Toque numa carta marcada para removê-la.</p>
+    </section>
+
+    <section class="bj-keys" id="bj-keys"></section>
+
+    <section class="result" id="bj-result" hidden>
+      <div class="verdict" id="bj-verdict"></div>
+      <div class="stats">
+        <div class="stat"><span class="value" id="bj-bust"></span><span class="label">Estourar se pedir</span></div>
+        <div class="stat"><span class="value" id="bj-win"></span><span class="label">Ganhar se parar</span></div>
+        <div class="stat"><span class="value" id="bj-push"></span><span class="label">Empatar se parar</span></div>
+        <div class="stat"><span class="value" id="bj-dealer-bust"></span><span class="label">Dealer estourar</span></div>
+      </div>
+      <ul class="reasons" id="bj-reasons"></ul>
+    </section>
+
+    <section class="settings">
+      <label class="check"><input type="checkbox" id="bj-h17"> Dealer pede no 17 macio (H17)</label>
+      <label class="check"><input type="checkbox" id="bj-das" checked> Pode dobrar depois de dividir</label>
+      <label class="check"><input type="checkbox" id="bj-surrender"> Pode desistir (surrender)</label>
+      <button type="button" id="bj-undo" class="secondary">Desfazer</button>
+      <button type="button" id="bj-clear" class="secondary">Nova mão</button>
+      <button type="button" id="bj-overlay" class="secondary overlay-btn" hidden>Abrir janela flutuante</button>
+    </section>
+  </main>
+
+  <footer data-for="bj" hidden>
+    Recomendações da estratégia básica para vários baralhos; as chances consideram baralho infinito e que o dealer
+    já conferiu o blackjack. Nenhuma estratégia vence a vantagem da casa no longo prazo — jogue com limite.
+  </footer>
+
+  <footer data-for="poker">
     As probabilidades são estimadas por simulação (Monte Carlo) contra mãos aleatórias dos oponentes.
     Use como apoio para estudar — leitura de jogo continua sendo com você.
   </footer>
 
   <script src="js/poker.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/blackjack.js"></script>
+  <script src="js/bj-app.js"></script>
   <script>
     // Só registra o modo offline quando servido por http(s); no APK os arquivos já são locais.
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
