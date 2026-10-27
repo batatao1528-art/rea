@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Assistente Poker Pro - Overlay ao Vivo</title>
+  <title>Assistente Poker - Calculadora de Equidade</title>
   <style>
     :root {
       --bg-dark: #0b1a10;
@@ -223,32 +223,22 @@
       cursor: pointer;
     }
 
-    .btn-overlay {
-      background: #e53e3e;
-      color: #fff;
-    }
-
     .btn-reset {
       background: #2d6a4f;
       color: #fff;
     }
 
-    canvas { display: none; }
   </style>
 </head>
 <body>
 
 <div class="container">
   <div class="header">
-    <span>♠ Assistente Poker Overlay</span>
-    <span id="overlay-status" class="status-badge">LEITOR OFF</span>
+    <span>♠ Assistente Poker</span>
+    <span class="status-badge">MONTE CARLO</span>
   </div>
 
-  <button class="btn-action btn-overlay" id="btn-toggle-overlay" onclick="toggleOverlayStream()">
-    🔴 ATIVAR LEITURA AO VIVO DA TELA
-  </button>
-
-  <div class="section-title" style="margin-top: 8px;">Mão & Mesa (Auto-Detectado)</div>
+  <div class="section-title" style="margin-top: 8px;">Mão & Mesa</div>
   <div class="cards-row">
     <div class="card-slot active" id="slot-h1" onclick="selectSlot('h1')">?</div>
     <div class="card-slot" id="slot-h2" onclick="selectSlot('h2')">?</div>
@@ -297,22 +287,20 @@
   <div class="inputs-row">
     <div class="input-group">
       <label>Oponentes</label>
-      <input type="number" id="opponents" value="3" min="1" max="8" onchange="calculate()">
+      <input type="number" id="opponents" value="3" min="1" max="8" oninput="calculate()">
     </div>
     <div class="input-group">
       <label>Pote ($)</label>
-      <input type="number" id="pot-size" value="0" onchange="calculate()">
+      <input type="number" id="pot-size" value="0" oninput="calculate()">
     </div>
     <div class="input-group">
       <label>Pagar ($)</label>
-      <input type="number" id="call-cost" value="0" onchange="calculate()">
+      <input type="number" id="call-cost" value="0" oninput="calculate()">
     </div>
   </div>
 
   <button class="btn-action btn-reset" onclick="resetHand()">Limpar Mão</button>
 </div>
-
-<canvas id="screen-canvas"></canvas>
 
 <script>
   const suits = [
@@ -325,12 +313,8 @@
 
   let state = {
     selectedSlot: 'h1',
-    cards: { h1: null, h2: null, b1: null, b2: null, b3: null, b4: null, b5: null },
-    isOverlayActive: false
+    cards: { h1: null, h2: null, b1: null, b2: null, b3: null, b4: null, b5: null }
   };
-
-  let mediaStream = null;
-  let captureTimer = null;
 
   function renderKeypad() {
     const keypad = document.getElementById('keypad');
@@ -395,105 +379,209 @@
     calculate();
   }
 
+  // ---- Avaliador de mãos (5 a 7 cartas) ----
+  // Carta = (valor-2)*4 + naipe, valor 2..14
+  const RANK_VAL = { A: 14, K: 13, Q: 12, J: 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
+  const SUIT_IDX = { s: 0, h: 1, d: 2, c: 3 };
+  const CAT_NAMES = ['Carta Alta', 'Par', 'Dois Pares', 'Trinca', 'Sequência', 'Flush', 'Full House', 'Quadra', 'Straight Flush'];
+  const RANK_NAMES = { 14: 'Ases', 13: 'Reis', 12: 'Damas', 11: 'Valetes', 10: 'Dez', 9: 'Noves', 8: 'Oitos', 7: 'Setes', 6: 'Seis', 5: 'Cincos', 4: 'Quatros', 3: 'Três', 2: 'Dois' };
+  const RANK_LABEL = { 14: 'A', 13: 'K', 12: 'Q', 11: 'J', 10: '10' };
+
+  function toInt(card) { return (RANK_VAL[card.rank] - 2) * 4 + SUIT_IDX[card.suit.code]; }
+
+  function straightHigh(mask) {
+    if (mask & (1 << 14)) mask |= 1 << 1;
+    for (let h = 14; h >= 5; h--) {
+      if (((mask >> (h - 4)) & 0x1F) === 0x1F) return h;
+    }
+    return 0;
+  }
+
+  function score(cat, ks) {
+    let v = cat;
+    for (let i = 0; i < 5; i++) v = v * 15 + (ks[i] || 0);
+    return v;
+  }
+
+  function evaluate(cs) {
+    const cnt = new Array(15).fill(0), sc = [0, 0, 0, 0], sm = [0, 0, 0, 0];
+    let mask = 0;
+    for (const c of cs) {
+      const r = (c >> 2) + 2, s = c & 3;
+      cnt[r]++; sc[s]++; sm[s] |= 1 << r; mask |= 1 << r;
+    }
+    let flush = null;
+    for (let s = 0; s < 4; s++) {
+      if (sc[s] >= 5) {
+        const sf = straightHigh(sm[s]);
+        if (sf) return score(8, [sf]);
+        flush = [];
+        for (let r = 14; r >= 2 && flush.length < 5; r--) if (sm[s] & (1 << r)) flush.push(r);
+      }
+    }
+    const quads = [], trips = [], pairs = [], singles = [];
+    for (let r = 14; r >= 2; r--) {
+      if (cnt[r] === 4) quads.push(r);
+      else if (cnt[r] === 3) trips.push(r);
+      else if (cnt[r] === 2) pairs.push(r);
+      else if (cnt[r] === 1) singles.push(r);
+    }
+    const topExcept = (excl, n) => {
+      const out = [];
+      for (let r = 14; r >= 2 && out.length < n; r--) if (cnt[r] && !excl.includes(r)) out.push(r);
+      return out;
+    };
+    if (quads.length) return score(7, [quads[0], ...topExcept([quads[0]], 1)]);
+    if (trips.length && (trips.length > 1 || pairs.length)) {
+      const pair = Math.max(trips[1] || 0, pairs[0] || 0);
+      return score(6, [trips[0], pair]);
+    }
+    if (flush) return score(5, flush);
+    const st = straightHigh(mask);
+    if (st) return score(4, [st]);
+    if (trips.length) return score(3, [trips[0], ...topExcept([trips[0]], 2)]);
+    if (pairs.length >= 2) return score(2, [pairs[0], pairs[1], ...topExcept([pairs[0], pairs[1]], 1)]);
+    if (pairs.length) return score(1, [pairs[0], ...topExcept([pairs[0]], 3)]);
+    return score(0, singles.slice(0, 5));
+  }
+
+  function category(sc) { return Math.floor(sc / 759375); } // 15^5
+
+  function describe(sc) {
+    const cat = category(sc);
+    const top = Math.floor(sc / 50625) % 15; // primeiro "kicker"
+    if (cat === 8 && top === 14) return 'Royal Flush';
+    if (cat === 1 || cat === 3 || cat === 7) return `${CAT_NAMES[cat]} de ${RANK_NAMES[top]}`;
+    if (cat === 0) return `Carta Alta (${RANK_LABEL[top] || top})`;
+    return CAT_NAMES[cat];
+  }
+
+  function describePreflop(h1, h2) {
+    const r1 = RANK_VAL[h1.rank], r2 = RANK_VAL[h2.rank];
+    if (r1 === r2) return `Par de ${RANK_NAMES[r1]}`;
+    const [a, b] = r1 > r2 ? [r1, r2] : [r2, r1];
+    const lbl = r => RANK_LABEL[r] || r;
+    return `${lbl(a)}${lbl(b)} ${h1.suit.code === h2.suit.code ? 'naipadas' : 'de naipes diferentes'}`;
+  }
+
+  // ---- Simulação Monte Carlo ----
+  function simulate(hero, board, opponents) {
+    const used = new Set([...hero, ...board]);
+    const deck = [];
+    for (let c = 0; c < 52; c++) if (!used.has(c)) deck.push(c);
+    const need = (5 - board.length) + opponents * 2;
+    const iters = Math.min(20000, Math.floor(160000 / (opponents + 1)));
+    let wins = 0, ties = 0, equity = 0;
+    const fullBoard = board.slice();
+
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < need; i++) {
+        const j = i + Math.floor(Math.random() * (deck.length - i));
+        const t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+      }
+      let k = 0;
+      fullBoard.length = board.length;
+      while (fullBoard.length < 5) fullBoard.push(deck[k++]);
+      const heroScore = evaluate([...hero, ...fullBoard]);
+      let best = 0, tiedWith = 0, lost = false;
+      for (let o = 0; o < opponents; o++) {
+        const s = evaluate([deck[k++], deck[k++], ...fullBoard]);
+        if (s > heroScore) { lost = true; break; }
+        if (s === heroScore) tiedWith++;
+        if (s > best) best = s;
+      }
+      if (lost) continue;
+      if (tiedWith === 0) { wins++; equity += 1; }
+      else { ties++; equity += 1 / (tiedWith + 1); }
+    }
+    return { win: wins / iters * 100, tie: ties / iters * 100, equity: equity / iters * 100 };
+  }
+
+  // Cartas que melhoram a categoria da sua mão na próxima rua
+  function countOuts(hero, board) {
+    if (board.length < 3 || board.length > 4) return null;
+    const used = new Set([...hero, ...board]);
+    const cur = category(evaluate([...hero, ...board]));
+    let outs = 0;
+    for (let c = 0; c < 52; c++) {
+      if (used.has(c)) continue;
+      const nb = [...board, c];
+      const cat = category(evaluate([...hero, ...nb]));
+      // conta só se melhora a sua mão e não apenas a mesa
+      if (cat > cur && cat > category(evaluate(nb))) outs++;
+    }
+    return outs;
+  }
+
+  let calcTimer = null;
   function calculate() {
-    const filledHand = state.cards.h1 && state.cards.h2;
-    if (!filledHand) {
+    clearTimeout(calcTimer);
+    calcTimer = setTimeout(runCalculation, 30);
+  }
+
+  function setBanner(text, bg, color) {
+    const el = document.getElementById('action-recommendation');
+    el.innerText = text;
+    el.style.background = bg;
+    el.style.color = color;
+  }
+
+  function runCalculation() {
+    const potOddsEl = document.getElementById('pot-odds-val');
+    if (!state.cards.h1 || !state.cards.h2) {
       document.getElementById('equity-val').innerText = '0.0%';
       document.getElementById('win-val').innerText = '0.0%';
-      document.getElementById('hand-rank').innerText = 'Aguardando cartas...';
+      document.getElementById('tie-val').innerText = '0.0%';
+      potOddsEl.innerText = '-';
+      document.getElementById('hand-rank').innerText = 'Aguardando suas 2 cartas...';
+      setBanner('ESCOLHA SUAS CARTAS', 'linear-gradient(135deg, #f39c12, #d35400)', '#000');
       return;
     }
 
-    let boardCount = ['b1', 'b2', 'b3', 'b4', 'b5'].filter(k => state.cards[k]).length;
-    let baseWin = 38 + (boardCount * 7);
-    let winPct = Math.min(Math.max(baseWin, 18), 92).toFixed(1);
-    let tiePct = (Math.random() * 3).toFixed(1);
-    let equity = (parseFloat(winPct) + parseFloat(tiePct)/2).toFixed(1);
+    const hero = [toInt(state.cards.h1), toInt(state.cards.h2)];
+    const board = ['b1', 'b2', 'b3', 'b4', 'b5'].filter(k => state.cards[k]).map(k => toInt(state.cards[k]));
+    if (board.length === 1 || board.length === 2) {
+      document.getElementById('hand-rank').innerText = 'Complete o flop (3 cartas) para calcular';
+      return;
+    }
 
-    document.getElementById('equity-val').innerText = equity + '%';
-    document.getElementById('win-val').innerText = winPct + '%';
-    document.getElementById('tie-val').innerText = tiePct + '%';
+    const opponents = Math.min(Math.max(parseInt(document.getElementById('opponents').value) || 1, 1), 8);
+    const res = simulate(hero, board, opponents);
+
+    document.getElementById('equity-val').innerText = res.equity.toFixed(1) + '%';
+    document.getElementById('win-val').innerText = res.win.toFixed(1) + '%';
+    document.getElementById('tie-val').innerText = res.tie.toFixed(1) + '%';
+
+    let handText = board.length >= 3 ? describe(evaluate([...hero, ...board])) : describePreflop(state.cards.h1, state.cards.h2);
+    const outs = countOuts(hero, board);
+    if (outs !== null) handText += ` · ${outs} outs`;
+    document.getElementById('hand-rank').innerText = 'Você tem agora: ' + handText;
+
+    // Equidade "forte": bem acima da sua parte justa do pote contra N oponentes
+    const fair = 100 / (opponents + 1);
+    const strong = res.equity >= fair + (100 - fair) * 0.25;
 
     const pot = parseFloat(document.getElementById('pot-size').value) || 0;
     const call = parseFloat(document.getElementById('call-cost').value) || 0;
 
     if (call > 0) {
-      let potOdds = ((call / (pot + call)) * 100).toFixed(1);
-      document.getElementById('pot-odds-val').innerText = potOdds + '%';
-
-      if (parseFloat(equity) > parseFloat(potOdds)) {
-        document.getElementById('action-recommendation').innerText = 'PAGAR (CALL)';
-        document.getElementById('action-recommendation').style.background = 'linear-gradient(135deg, #2f855a, #276749)';
-        document.getElementById('action-recommendation').style.color = '#fff';
+      const potOdds = call / (pot + call) * 100;
+      potOddsEl.innerText = potOdds.toFixed(1) + '%';
+      if (res.equity > potOdds) {
+        if (strong) setBanner('AUMENTAR (RAISE)', 'linear-gradient(135deg, #2b6cb0, #2c5282)', '#fff');
+        else setBanner('PAGAR (CALL)', 'linear-gradient(135deg, #2f855a, #276749)', '#fff');
       } else {
-        document.getElementById('action-recommendation').innerText = 'DESISTIR (FOLD)';
-        document.getElementById('action-recommendation').style.background = 'linear-gradient(135deg, #e53e3e, #c53030)';
-        document.getElementById('action-recommendation').style.color = '#fff';
+        setBanner('DESISTIR (FOLD)', 'linear-gradient(135deg, #e53e3e, #c53030)', '#fff');
       }
     } else {
-      document.getElementById('pot-odds-val').innerText = '-';
-      document.getElementById('action-recommendation').innerText = 'PASSE (CHECK)';
-      document.getElementById('action-recommendation').style.background = 'linear-gradient(135deg, #f39c12, #d35400)';
-      document.getElementById('action-recommendation').style.color = '#000';
+      potOddsEl.innerText = '-';
+      if (strong) setBanner('APOSTAR (BET)', 'linear-gradient(135deg, #2b6cb0, #2c5282)', '#fff');
+      else setBanner('PASSE (CHECK)', 'linear-gradient(135deg, #f39c12, #d35400)', '#000');
     }
-
-    document.getElementById('hand-rank').innerText = boardCount >= 3 ? 'Jogo pronto: Equidade calculada' : 'Mão Pré-Flop Ativa';
-  }
-
-  async function toggleOverlayStream() {
-    const statusBadge = document.getElementById('overlay-status');
-    const toggleBtn = document.getElementById('btn-toggle-overlay');
-
-    if (state.isOverlayActive) {
-      if (captureTimer) clearInterval(captureTimer);
-      if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
-      state.isOverlayActive = false;
-      statusBadge.innerText = 'LEITOR OFF';
-      statusBadge.classList.remove('live');
-      toggleBtn.innerText = '🔴 ATIVAR LEITURA AO VIVO DA TELA';
-      toggleBtn.style.background = '#e53e3e';
-      return;
-    }
-
-    try {
-      mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'never' },
-        audio: false
-      });
-
-      state.isOverlayActive = true;
-      statusBadge.innerText = 'AO VIVO';
-      statusBadge.classList.add('live');
-      toggleBtn.innerText = '⏹ PARAR LEITURA AO VIVO';
-      toggleBtn.style.background = '#2b6cb0';
-
-      const track = mediaStream.getVideoTracks()[0];
-      const imageCapture = new ImageCapture(track);
-
-      captureTimer = setInterval(async () => {
-        if (track.readyState === 'live') {
-          try {
-            const frame = await imageCapture.grabFrame();
-            processLiveFrame(frame);
-          } catch(e) {}
-        }
-      }, 800);
-
-    } catch (err) {
-      alert("Para o Overlay ler a tela, aceite a permissão de Gravação de Tela do Android.");
-    }
-  }
-
-  function processLiveFrame(frame) {
-    const canvas = document.getElementById('screen-canvas');
-    canvas.width = frame.width;
-    canvas.height = frame.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(frame, 0, 0);
-    calculate();
   }
 
   renderKeypad();
+  calculate();
 </script>
 </body>
 </html>
