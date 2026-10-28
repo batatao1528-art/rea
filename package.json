@@ -1,0 +1,14 @@
+{
+  "name": "bloco-rush",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quebra-cabeça de blocos competitivo: mesmas peças para todos, ranking por sala.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

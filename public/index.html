@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14112b">
+  <title>Bloco Rush</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="app">
+    <section id="screen-menu" class="screen">
+      <h1 class="logo">Bloco<span>Rush</span></h1>
+      <p class="tagline">Mesmas peças para todos. Vence quem joga melhor.</p>
+
+      <form id="login" class="card" hidden>
+        <label for="name">Escolha um apelido</label>
+        <input id="name" name="name" maxlength="16" minlength="2" autocomplete="nickname" required>
+        <button class="btn primary" type="submit">Começar</button>
+        <p class="error" id="login-error"></p>
+      </form>
+
+      <div id="lobby" hidden>
+        <div class="card wallet">
+          <div>
+            <div class="muted">Olá, <strong id="player-name"></strong></div>
+            <div class="balance"><span id="balance">0</span> fichas</div>
+          </div>
+          <button class="btn small" id="bonus" type="button">Bônus diário</button>
+        </div>
+        <button class="btn primary big" id="play-room" type="button">
+          Sala de 30 jogadores
+          <small>Entrada: 10 fichas · Top 3 dividem o prêmio</small>
+        </button>
+        <button class="btn big" id="play-practice" type="button">
+          Treino
+          <small>Grátis, sem ranking</small>
+        </button>
+        <p class="error" id="lobby-error"></p>
+      </div>
+
+      <details class="card howto">
+        <summary>Como jogar</summary>
+        <ul>
+          <li>Arraste as peças para o tabuleiro 8×8.</li>
+          <li>Complete linhas ou colunas para limpar e ganhar pontos.</li>
+          <li>Limpar várias de uma vez ou em sequência multiplica os pontos.</li>
+          <li>Você tem 2 minutos. Acaba antes se nenhuma peça couber.</li>
+          <li>Na sala, todos recebem exatamente as mesmas peças.</li>
+        </ul>
+      </details>
+      <p class="disclaimer">Fichas virtuais, sem valor em dinheiro. Não podem ser sacadas nem trocadas.</p>
+    </section>
+
+    <section id="screen-game" class="screen" hidden>
+      <header class="hud">
+        <div class="hud-item"><span class="muted">Pontos</span><strong id="hud-score">0</strong></div>
+        <div class="hud-item timer"><span class="muted">Tempo</span><strong id="hud-time">2:00</strong></div>
+        <div class="hud-item"><span class="muted">Combo</span><strong id="hud-streak">–</strong></div>
+      </header>
+      <canvas id="board" aria-label="Tabuleiro do Bloco Rush"></canvas>
+      <p class="muted center" id="game-mode"></p>
+    </section>
+
+    <section id="screen-result" class="screen" hidden>
+      <h2 id="result-title">Fim de jogo</h2>
+      <div class="final-score"><span id="result-score">0</span><small>pontos</small></div>
+      <p class="muted center" id="result-detail"></p>
+      <div class="card" id="room-panel" hidden>
+        <div class="room-head">
+          <strong id="room-status"></strong>
+          <span class="muted" id="room-meta"></span>
+        </div>
+        <ol class="ranking" id="ranking"></ol>
+      </div>
+      <button class="btn primary big" id="again" type="button">Jogar de novo</button>
+      <button class="btn big" id="back" type="button">Menu</button>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
