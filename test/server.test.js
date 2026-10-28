@@ -25,6 +25,7 @@ test('fluxo completo pela API HTTP', async (t) => {
   assert.equal((await fetch(`${base}/shared/engine.js`)).status, 200);
   assert.equal((await fetch(`${base}/..%2fpackage.json`)).status, 404);
 
+  assert.equal((await call('GET', '/api/health')).body.ok, true);
   assert.equal((await call('POST', '/api/rooms/join')).status, 401);
   const { body: login } = await call('POST', '/api/players', { name: 'Ana' });
   const join = await call('POST', '/api/rooms/join', null, login.token);

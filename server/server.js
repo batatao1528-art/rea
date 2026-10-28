@@ -78,6 +78,7 @@ export function createServer(service) {
       const route = `${req.method} ${pathname}`;
       let match;
 
+      if (route === 'GET /api/health') return sendJson(res, 200, { ok: true });
       if (route === 'POST /api/players') {
         const body = await readJson(req);
         return sendJson(res, 201, service.createPlayer(body.name));

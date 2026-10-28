@@ -17,6 +17,18 @@ npm test           # testes do motor, das salas e da API
 
 Variáveis opcionais: `PORT` (padrão 3000) e `DB_FILE` (padrão `data/db.json`).
 
+## Publicar online (Render, plano grátis)
+
+1. Crie uma conta em https://render.com entrando com o GitHub.
+2. Clique em **New → Blueprint** e escolha o repositório `rea`.
+3. O Render lê o `render.yaml` e cria o serviço `bloco-rush`. Clique em **Apply**.
+4. Em alguns minutos o jogo fica em `https://bloco-rush-xxxx.onrender.com`.
+
+No plano grátis o servidor dorme após 15 minutos sem uso (o primeiro acesso demora
+uns 50 segundos) e **os dados são apagados a cada reinício ou nova publicação**:
+contas e fichas voltam do zero. Para guardar dados, use um disco persistente
+(plano pago) apontando `DB_FILE` para ele, ou um banco de dados.
+
 ## Regras
 
 - Tabuleiro 8×8, 3 peças por vez; a bandeja só renova quando as 3 forem usadas.

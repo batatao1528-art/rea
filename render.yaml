@@ -1,0 +1,13 @@
+# Publicação no Render (https://render.com) pelo botão "New > Blueprint".
+services:
+  - type: web
+    name: bloco-rush
+    runtime: node
+    plan: free
+    branch: ccr-0d44af81-8dpcti
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
